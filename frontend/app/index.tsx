@@ -148,10 +148,68 @@ export default function WordUnjumbleGame() {
     }
   };
 
-  // Reset game with new settings
-  const applySettings = () => {
+  // Temporary settings state for modal (to prevent blinking)
+  const [tempWordLength, setTempWordLength] = useState(wordLength);
+  const [tempWordCount, setTempWordCount] = useState(wordCount);
+
+  // Open settings modal with current values
+  const openSettings = () => {
+    setTempWordLength(wordLength);
+    setTempWordCount(wordCount);
+    setShowSettings(true);
+  };
+
+  // Close settings without applying
+  const closeSettings = () => {
     setShowSettings(false);
-    fetchWords();
+  };
+
+  // Apply settings and start new game
+  const applySettings = () => {
+    setWordLength(tempWordLength);
+    setWordCount(tempWordCount);
+    setShowSettings(false);
+    // Fetch words with new settings
+    fetchWordsWithSettings(tempWordLength, tempWordCount);
+  };
+
+  // Fetch words with specific settings
+  const fetchWordsWithSettings = async (length: number, count: number) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/words`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          word_length: length,
+          word_count: count,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch words');
+      }
+      
+      const data = await response.json();
+      
+      setGameState({
+        words: data.words,
+        currentIndex: 0,
+        score: 0,
+        answers: {},
+        results: {},
+      });
+      setGameStarted(true);
+      setGameCompleted(false);
+      setCurrentAnswer('');
+      setShowResult(false);
+    } catch (error) {
+      console.error('Error fetching words:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Render letter cards for jumbled word
@@ -166,83 +224,6 @@ export default function WordUnjumbleGame() {
       </View>
     );
   };
-
-  // Settings Modal
-  const SettingsModal = () => (
-    <Modal
-      visible={showSettings}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => setShowSettings(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Game Settings</Text>
-            <TouchableOpacity onPress={() => setShowSettings(false)}>
-              <Ionicons name="close" size={24} color={COLORS.text} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Word Length Selection */}
-          <View style={styles.settingSection}>
-            <Text style={styles.settingLabel}>Word Complexity (Letters)</Text>
-            <View style={styles.optionRow}>
-              {[4, 5, 6, 7, 8].map((length) => (
-                <TouchableOpacity
-                  key={length}
-                  style={[
-                    styles.optionButton,
-                    wordLength === length && styles.optionButtonActive,
-                  ]}
-                  onPress={() => setWordLength(length)}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      wordLength === length && styles.optionTextActive,
-                    ]}
-                  >
-                    {length}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Word Count Selection */}
-          <View style={styles.settingSection}>
-            <Text style={styles.settingLabel}>Number of Words</Text>
-            <View style={styles.optionRow}>
-              {[1, 3, 5, 10].map((count) => (
-                <TouchableOpacity
-                  key={count}
-                  style={[
-                    styles.optionButton,
-                    wordCount === count && styles.optionButtonActive,
-                  ]}
-                  onPress={() => setWordCount(count)}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      wordCount === count && styles.optionTextActive,
-                    ]}
-                  >
-                    {count}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.applyButton} onPress={applySettings}>
-            <Text style={styles.applyButtonText}>Start New Game</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
 
   // Game Completed Screen
   const GameCompletedScreen = () => (
@@ -267,7 +248,7 @@ export default function WordUnjumbleGame() {
         
         <TouchableOpacity
           style={[styles.completedButton, styles.settingsButton]}
-          onPress={() => setShowSettings(true)}
+          onPress={openSettings}
         >
           <Ionicons name="settings-outline" size={20} color={COLORS.primary} />
           <Text style={styles.settingsButtonText}>Change Settings</Text>
@@ -295,7 +276,7 @@ export default function WordUnjumbleGame() {
           </View>
           <TouchableOpacity
             style={styles.settingsIcon}
-            onPress={() => setShowSettings(true)}
+            onPress={openSettings}
           >
             <Ionicons name="settings-outline" size={24} color={COLORS.primary} />
           </TouchableOpacity>
@@ -395,7 +376,79 @@ export default function WordUnjumbleGame() {
         ) : null}
 
         {/* Settings Modal */}
-        <SettingsModal />
+        <Modal
+          visible={showSettings}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={closeSettings}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Game Settings</Text>
+                <TouchableOpacity onPress={closeSettings}>
+                  <Ionicons name="close" size={24} color={COLORS.text} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Word Length Selection */}
+              <View style={styles.settingSection}>
+                <Text style={styles.settingLabel}>Word Complexity (Letters)</Text>
+                <View style={styles.optionRow}>
+                  {[4, 5, 6, 7, 8].map((length) => (
+                    <TouchableOpacity
+                      key={length}
+                      style={[
+                        styles.optionButton,
+                        tempWordLength === length && styles.optionButtonActive,
+                      ]}
+                      onPress={() => setTempWordLength(length)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          tempWordLength === length && styles.optionTextActive,
+                        ]}
+                      >
+                        {length}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Word Count Selection */}
+              <View style={styles.settingSection}>
+                <Text style={styles.settingLabel}>Number of Words</Text>
+                <View style={styles.optionRow}>
+                  {[1, 3, 5, 10].map((count) => (
+                    <TouchableOpacity
+                      key={count}
+                      style={[
+                        styles.optionButton,
+                        tempWordCount === count && styles.optionButtonActive,
+                      ]}
+                      onPress={() => setTempWordCount(count)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          tempWordCount === count && styles.optionTextActive,
+                        ]}
+                      >
+                        {count}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.applyButton} onPress={applySettings}>
+                <Text style={styles.applyButtonText}>Start New Game</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
