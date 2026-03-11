@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,10 @@ interface GameState {
   results: { [key: string]: boolean | null };
 }
 
+interface HintState {
+  [wordId: string]: number[]; // Array of revealed letter indices
+}
+
 // Neutral color palette
 const COLORS = {
   background: '#F5F5F5',
@@ -49,6 +53,8 @@ const COLORS = {
   error: '#FC8181',
   errorDark: '#F56565',
   accent: '#718096',
+  hint: '#ECC94B',
+  hintDark: '#D69E2E',
 };
 
 export default function WordUnjumbleGame() {
@@ -72,9 +78,87 @@ export default function WordUnjumbleGame() {
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
 
+  // Timer state
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Hint state - tracks revealed letter indices for each word
+  const [hints, setHints] = useState<HintState>({});
+
+  // Timer effect
+  useEffect(() => {
+    if (timerRunning && !gameCompleted) {
+      timerRef.current = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [timerRunning, gameCompleted]);
+
+  // Format time as MM:SS
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Get hint for a word - reveals one unrevealed letter
+  const getHint = (wordId: string, originalWord: string) => {
+    const currentHints = hints[wordId] || [];
+    const unrevealedIndices: number[] = [];
+    
+    // Find indices that haven't been revealed yet
+    for (let i = 0; i < originalWord.length; i++) {
+      if (!currentHints.includes(i)) {
+        unrevealedIndices.push(i);
+      }
+    }
+    
+    if (unrevealedIndices.length === 0) return; // All letters already revealed
+    
+    // Pick a random unrevealed index
+    const randomIndex = unrevealedIndices[Math.floor(Math.random() * unrevealedIndices.length)];
+    
+    setHints(prev => ({
+      ...prev,
+      [wordId]: [...(prev[wordId] || []), randomIndex],
+    }));
+  };
+
+  // Get hint display string for a word
+  const getHintDisplay = (wordId: string, originalWord: string): string => {
+    const revealedIndices = hints[wordId] || [];
+    if (revealedIndices.length === 0) return '';
+    
+    return originalWord
+      .split('')
+      .map((letter, index) => (revealedIndices.includes(index) ? letter.toUpperCase() : '_'))
+      .join(' ');
+  };
+
+  // Check if hint is available (not all letters revealed)
+  const canGetHint = (wordId: string, wordLength: number): boolean => {
+    const revealedCount = (hints[wordId] || []).length;
+    return revealedCount < wordLength - 1; // Leave at least one letter unrevealed
+  };
+
   // Fetch words from API
   const fetchWords = useCallback(async () => {
     setLoading(true);
+    // Reset timer and hints
+    setElapsedTime(0);
+    setTimerRunning(false);
+    setHints({});
     try {
       const response = await fetch(`${BACKEND_URL}/api/words`, {
         method: 'POST',
@@ -104,6 +188,8 @@ export default function WordUnjumbleGame() {
       setGameCompleted(false);
       setCurrentAnswer('');
       setShowResult(false);
+      // Start timer when game loads
+      setTimerRunning(true);
     } catch (error) {
       console.error('Error fetching words:', error);
     } finally {
@@ -214,6 +300,10 @@ export default function WordUnjumbleGame() {
   // Fetch words with specific settings
   const fetchWordsWithSettings = async (length: number, count: number) => {
     setLoading(true);
+    // Reset timer and hints
+    setElapsedTime(0);
+    setTimerRunning(false);
+    setHints({});
     try {
       const response = await fetch(`${BACKEND_URL}/api/words`, {
         method: 'POST',
@@ -243,6 +333,8 @@ export default function WordUnjumbleGame() {
       setGameCompleted(false);
       setCurrentAnswer('');
       setShowResult(false);
+      // Start timer when game loads
+      setTimerRunning(true);
     } catch (error) {
       console.error('Error fetching words:', error);
     } finally {
@@ -274,6 +366,10 @@ export default function WordUnjumbleGame() {
       <Text style={styles.completedPercentage}>
         {Math.round((gameState.score / gameState.words.length) * 100)}% Correct
       </Text>
+      <View style={styles.completedTimeContainer}>
+        <Ionicons name="time-outline" size={20} color={COLORS.textLight} />
+        <Text style={styles.completedTime}>Time: {formatTime(elapsedTime)}</Text>
+      </View>
       
       <View style={styles.completedButtons}>
         <TouchableOpacity
@@ -312,12 +408,21 @@ export default function WordUnjumbleGame() {
               {wordLength} letters • {wordCount} word{wordCount > 1 ? 's' : ''}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.settingsIcon}
-            onPress={openSettings}
-          >
-            <Ionicons name="settings-outline" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            {/* Timer Display */}
+            {gameStarted && !loading && (
+              <View style={styles.timerContainer}>
+                <Ionicons name="time-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.settingsIcon}
+              onPress={openSettings}
+            >
+              <Ionicons name="settings-outline" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Main Content */}
@@ -366,6 +471,33 @@ export default function WordUnjumbleGame() {
                     </View>
                   ))}
                 </View>
+
+                {/* Hint Display and Button */}
+                {!showResult && (
+                  <View style={styles.hintSection}>
+                    {(hints[word.id] || []).length > 0 && (
+                      <Text style={styles.hintDisplay}>
+                        Hint: {getHintDisplay(word.id, word.original)}
+                      </Text>
+                    )}
+                    <TouchableOpacity
+                      style={[
+                        styles.hintButton,
+                        !canGetHint(word.id, word.length) && styles.hintButtonDisabled,
+                      ]}
+                      onPress={() => getHint(word.id, word.original)}
+                      disabled={!canGetHint(word.id, word.length)}
+                    >
+                      <Ionicons name="bulb-outline" size={16} color={canGetHint(word.id, word.length) ? COLORS.hintDark : COLORS.textMuted} />
+                      <Text style={[
+                        styles.hintButtonText,
+                        !canGetHint(word.id, word.length) && styles.hintButtonTextDisabled,
+                      ]}>
+                        Hint ({(hints[word.id] || []).length}/{word.length - 1})
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 
                 {/* Answer Input */}
                 {!showResult ? (
@@ -428,6 +560,37 @@ export default function WordUnjumbleGame() {
             <View style={styles.wordCard}>
               <Text style={styles.wordCardLabel}>Unjumble this word:</Text>
               {renderJumbledWord(currentWord.jumbled)}
+              
+              {/* Hint Section for single word */}
+              {!showResult && (
+                <View style={styles.singleWordHintSection}>
+                  {(hints[currentWord.id] || []).length > 0 && (
+                    <Text style={styles.singleWordHintDisplay}>
+                      Hint: {getHintDisplay(currentWord.id, currentWord.original)}
+                    </Text>
+                  )}
+                  <TouchableOpacity
+                    style={[
+                      styles.singleWordHintButton,
+                      !canGetHint(currentWord.id, currentWord.length) && styles.hintButtonDisabled,
+                    ]}
+                    onPress={() => getHint(currentWord.id, currentWord.original)}
+                    disabled={!canGetHint(currentWord.id, currentWord.length)}
+                  >
+                    <Ionicons 
+                      name="bulb-outline" 
+                      size={18} 
+                      color={canGetHint(currentWord.id, currentWord.length) ? COLORS.hintDark : COLORS.textMuted} 
+                    />
+                    <Text style={[
+                      styles.singleWordHintButtonText,
+                      !canGetHint(currentWord.id, currentWord.length) && styles.hintButtonTextDisabled,
+                    ]}>
+                      Get Hint ({(hints[currentWord.id] || []).length}/{currentWord.length - 1})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Answer Input */}
@@ -967,5 +1130,98 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.card,
+  },
+  // Timer styles
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  timerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  completedTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 6,
+  },
+  completedTime: {
+    fontSize: 16,
+    color: COLORS.textLight,
+  },
+  // Hint styles for multi-word mode
+  hintSection: {
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  hintDisplay: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.hintDark,
+    letterSpacing: 2,
+  },
+  hintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.hint,
+    gap: 4,
+  },
+  hintButtonDisabled: {
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.border,
+  },
+  hintButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.hintDark,
+  },
+  hintButtonTextDisabled: {
+    color: COLORS.textMuted,
+  },
+  // Hint styles for single word mode
+  singleWordHintSection: {
+    marginTop: 20,
+    alignItems: 'center',
+    gap: 10,
+  },
+  singleWordHintDisplay: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: COLORS.hintDark,
+    letterSpacing: 4,
+  },
+  singleWordHintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.hint,
+    gap: 6,
+  },
+  singleWordHintButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.hintDark,
   },
 });
