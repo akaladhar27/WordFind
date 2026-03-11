@@ -116,7 +116,7 @@ export default function WordUnjumbleGame() {
     fetchWords();
   }, []);
 
-  // Check answer
+  // Check answer for single word mode
   const checkAnswer = () => {
     Keyboard.dismiss();
     const currentWord = gameState.words[gameState.currentIndex];
@@ -131,6 +131,44 @@ export default function WordUnjumbleGame() {
       results: { ...prev.results, [currentWord.id]: correct },
       score: correct ? prev.score + 1 : prev.score,
     }));
+  };
+
+  // Check all answers for multi-word mode
+  const checkAllAnswers = () => {
+    Keyboard.dismiss();
+    let correctCount = 0;
+    const newResults: { [key: string]: boolean } = {};
+    
+    gameState.words.forEach(word => {
+      const userAnswer = gameState.answers[word.id] || '';
+      const isCorrect = userAnswer.toLowerCase().trim() === word.original.toLowerCase();
+      newResults[word.id] = isCorrect;
+      if (isCorrect) correctCount++;
+    });
+    
+    setGameState(prev => ({
+      ...prev,
+      results: newResults,
+      score: correctCount,
+    }));
+    setShowResult(true);
+    setGameCompleted(true);
+  };
+
+  // Update answer for a specific word in multi-word mode
+  const updateAnswer = (wordId: string, answer: string) => {
+    setGameState(prev => ({
+      ...prev,
+      answers: { ...prev.answers, [wordId]: answer },
+    }));
+  };
+
+  // Check if all answers are filled
+  const allAnswersFilled = () => {
+    return gameState.words.every(word => {
+      const answer = gameState.answers[word.id];
+      return answer && answer.trim().length > 0;
+    });
   };
 
   // Move to next word
@@ -290,7 +328,90 @@ export default function WordUnjumbleGame() {
           </View>
         ) : gameCompleted ? (
           <GameCompletedScreen />
+        ) : gameState.words.length > 1 ? (
+          /* Multi-word mode - show all words at once */
+          <ScrollView
+            contentContainerStyle={styles.gameContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Progress Header */}
+            <View style={styles.progressContainer}>
+              <Text style={styles.progressText}>
+                {gameState.words.length} words to unjumble
+              </Text>
+              <Text style={styles.scoreText}>
+                {wordLength} letters each
+              </Text>
+            </View>
+
+            {/* All Words List */}
+            {gameState.words.map((word, index) => (
+              <View key={word.id} style={styles.multiWordCard}>
+                <View style={styles.multiWordHeader}>
+                  <Text style={styles.multiWordNumber}>#{index + 1}</Text>
+                  {showResult && gameState.results[word.id] !== undefined && (
+                    <Ionicons
+                      name={gameState.results[word.id] ? 'checkmark-circle' : 'close-circle'}
+                      size={24}
+                      color={gameState.results[word.id] ? COLORS.successDark : COLORS.errorDark}
+                    />
+                  )}
+                </View>
+                
+                {/* Jumbled Letters */}
+                <View style={styles.multiWordLetters}>
+                  {word.jumbled.split('').map((letter, letterIndex) => (
+                    <View key={letterIndex} style={styles.smallLetterCard}>
+                      <Text style={styles.smallLetterText}>{letter.toUpperCase()}</Text>
+                    </View>
+                  ))}
+                </View>
+                
+                {/* Answer Input */}
+                {!showResult ? (
+                  <TextInput
+                    style={styles.multiWordInput}
+                    value={gameState.answers[word.id] || ''}
+                    onChangeText={(text) => updateAnswer(word.id, text)}
+                    placeholder="Type your answer..."
+                    placeholderTextColor={COLORS.textMuted}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                ) : (
+                  <View style={styles.multiWordResult}>
+                    <Text style={[
+                      styles.multiWordAnswer,
+                      gameState.results[word.id] ? styles.answerCorrect : styles.answerIncorrect
+                    ]}>
+                      Your answer: {gameState.answers[word.id] || '(empty)'}
+                    </Text>
+                    {!gameState.results[word.id] && (
+                      <Text style={styles.multiWordCorrect}>
+                        Correct: {word.original.toUpperCase()}
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            ))}
+
+            {/* Check All Button */}
+            {!showResult && (
+              <TouchableOpacity
+                style={[
+                  styles.checkAllButton,
+                  !allAnswersFilled() && styles.checkButtonDisabled,
+                ]}
+                onPress={checkAllAnswers}
+                disabled={!allAnswersFilled()}
+              >
+                <Text style={styles.checkAllButtonText}>Check All Answers</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         ) : currentWord ? (
+          /* Single word mode - original behavior */
           <ScrollView
             contentContainerStyle={styles.gameContent}
             keyboardShouldPersistTaps="handled"
@@ -757,6 +878,92 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   applyButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  // Multi-word mode styles
+  multiWordCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  multiWordHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  multiWordNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  multiWordLetters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  smallLetterCard: {
+    width: 40,
+    height: 46,
+    backgroundColor: COLORS.primary,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  smallLetterText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.card,
+  },
+  multiWordInput: {
+    backgroundColor: COLORS.background,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: COLORS.text,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  multiWordResult: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  multiWordAnswer: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  answerCorrect: {
+    color: COLORS.successDark,
+  },
+  answerIncorrect: {
+    color: COLORS.errorDark,
+  },
+  multiWordCorrect: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  checkAllButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  checkAllButtonText: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.card,
