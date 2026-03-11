@@ -152,6 +152,31 @@ export default function WordUnjumbleGame() {
     return revealedCount < wordLength - 1; // Leave at least one letter unrevealed
   };
 
+  // Reshuffle letters of a word
+  const reshuffleWord = (wordId: string) => {
+    setGameState(prev => {
+      const wordIndex = prev.words.findIndex(w => w.id === wordId);
+      if (wordIndex === -1) return prev;
+      
+      const word = prev.words[wordIndex];
+      const letters = word.jumbled.split('');
+      
+      // Shuffle the letters
+      for (let i = letters.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [letters[i], letters[j]] = [letters[j], letters[i]];
+      }
+      
+      const newJumbled = letters.join('');
+      
+      // Update the word with new jumbled letters
+      const newWords = [...prev.words];
+      newWords[wordIndex] = { ...word, jumbled: newJumbled };
+      
+      return { ...prev, words: newWords };
+    });
+  };
+
   // Fetch words from API
   const fetchWords = useCallback(async () => {
     setLoading(true);
@@ -480,22 +505,31 @@ export default function WordUnjumbleGame() {
                         Hint: {getHintDisplay(word.id, word.original)}
                       </Text>
                     )}
-                    <TouchableOpacity
-                      style={[
-                        styles.hintButton,
-                        !canGetHint(word.id, word.length) && styles.hintButtonDisabled,
-                      ]}
-                      onPress={() => getHint(word.id, word.original)}
-                      disabled={!canGetHint(word.id, word.length)}
-                    >
-                      <Ionicons name="bulb-outline" size={16} color={canGetHint(word.id, word.length) ? COLORS.hintDark : COLORS.textMuted} />
-                      <Text style={[
-                        styles.hintButtonText,
-                        !canGetHint(word.id, word.length) && styles.hintButtonTextDisabled,
-                      ]}>
-                        Hint ({(hints[word.id] || []).length}/{word.length - 1})
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={styles.actionButtonsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.hintButton,
+                          !canGetHint(word.id, word.length) && styles.hintButtonDisabled,
+                        ]}
+                        onPress={() => getHint(word.id, word.original)}
+                        disabled={!canGetHint(word.id, word.length)}
+                      >
+                        <Ionicons name="bulb-outline" size={16} color={canGetHint(word.id, word.length) ? COLORS.hintDark : COLORS.textMuted} />
+                        <Text style={[
+                          styles.hintButtonText,
+                          !canGetHint(word.id, word.length) && styles.hintButtonTextDisabled,
+                        ]}>
+                          Hint ({(hints[word.id] || []).length}/{word.length - 1})
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.reshuffleButton}
+                        onPress={() => reshuffleWord(word.id)}
+                      >
+                        <Ionicons name="shuffle-outline" size={16} color={COLORS.primary} />
+                        <Text style={styles.reshuffleButtonText}>Shuffle</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
                 
@@ -569,26 +603,35 @@ export default function WordUnjumbleGame() {
                       Hint: {getHintDisplay(currentWord.id, currentWord.original)}
                     </Text>
                   )}
-                  <TouchableOpacity
-                    style={[
-                      styles.singleWordHintButton,
-                      !canGetHint(currentWord.id, currentWord.length) && styles.hintButtonDisabled,
-                    ]}
-                    onPress={() => getHint(currentWord.id, currentWord.original)}
-                    disabled={!canGetHint(currentWord.id, currentWord.length)}
-                  >
-                    <Ionicons 
-                      name="bulb-outline" 
-                      size={18} 
-                      color={canGetHint(currentWord.id, currentWord.length) ? COLORS.hintDark : COLORS.textMuted} 
-                    />
-                    <Text style={[
-                      styles.singleWordHintButtonText,
-                      !canGetHint(currentWord.id, currentWord.length) && styles.hintButtonTextDisabled,
-                    ]}>
-                      Get Hint ({(hints[currentWord.id] || []).length}/{currentWord.length - 1})
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.singleWordActionButtonsRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.singleWordHintButton,
+                        !canGetHint(currentWord.id, currentWord.length) && styles.hintButtonDisabled,
+                      ]}
+                      onPress={() => getHint(currentWord.id, currentWord.original)}
+                      disabled={!canGetHint(currentWord.id, currentWord.length)}
+                    >
+                      <Ionicons 
+                        name="bulb-outline" 
+                        size={18} 
+                        color={canGetHint(currentWord.id, currentWord.length) ? COLORS.hintDark : COLORS.textMuted} 
+                      />
+                      <Text style={[
+                        styles.singleWordHintButtonText,
+                        !canGetHint(currentWord.id, currentWord.length) && styles.hintButtonTextDisabled,
+                      ]}>
+                        Hint ({(hints[currentWord.id] || []).length}/{currentWord.length - 1})
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.singleWordReshuffleButton}
+                      onPress={() => reshuffleWord(currentWord.id)}
+                    >
+                      <Ionicons name="shuffle-outline" size={18} color={COLORS.primary} />
+                      <Text style={styles.singleWordReshuffleButtonText}>Shuffle</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
             </View>
@@ -1223,5 +1266,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: COLORS.hintDark,
+  },
+  // Action buttons row styles
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  reshuffleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 4,
+  },
+  reshuffleButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.primary,
+  },
+  // Single word mode action buttons
+  singleWordActionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  singleWordReshuffleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 6,
+  },
+  singleWordReshuffleButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.primary,
   },
 });
