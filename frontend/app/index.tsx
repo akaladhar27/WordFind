@@ -676,7 +676,7 @@ export default function WordUnjumbleGame() {
               )}
             </View>
 
-            {/* Answer Input - Always visible in single-word mode */}
+            {/* Answer Input - Auto-checks when letter count matches */}
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -686,20 +686,45 @@ export default function WordUnjumbleGame() {
                 ]}
                 value={currentAnswer}
                 onChangeText={(text) => {
-                  setCurrentAnswer(text);
+                  // Only allow letters
+                  const cleanText = text.replace(/[^a-zA-Z]/g, '');
+                  setCurrentAnswer(cleanText);
+                  
                   // Reset result when user modifies the answer
                   if (showResult) {
                     setShowResult(false);
+                  }
+                  
+                  // Auto-check when letter count matches expected word length
+                  if (cleanText.length === currentWord.length && !showResult) {
+                    // Delay slightly to allow state to update
+                    setTimeout(() => {
+                      const correct = cleanText.toLowerCase().trim() === currentWord.original.toLowerCase();
+                      setIsCorrect(correct);
+                      setShowResult(true);
+                      setGameState(prev => ({
+                        ...prev,
+                        answers: { ...prev.answers, [currentWord.id]: cleanText },
+                        results: { ...prev.results, [currentWord.id]: correct },
+                        score: correct ? prev.score + 1 : prev.score,
+                      }));
+                    }, 100);
                   }
                 }}
                 placeholder="Type your answer..."
                 placeholderTextColor={COLORS.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={currentAnswer.length > 0 && !showResult ? checkAnswer : undefined}
+                maxLength={currentWord.length}
                 editable={!showResult}
               />
+              
+              {/* Letter count indicator */}
+              {!showResult && (
+                <Text style={styles.letterCountIndicator}>
+                  {currentAnswer.length} / {currentWord.length} letters
+                </Text>
+              )}
               
               {/* Show correct answer if incorrect */}
               {showResult && !isCorrect && (
@@ -708,21 +733,9 @@ export default function WordUnjumbleGame() {
                 </Text>
               )}
               
-              {/* Button row */}
+              {/* Button row - Only show One More after result, Summary always visible */}
               <View style={styles.singleWordButtonRow}>
-                {!showResult ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.checkButton,
-                      styles.checkButtonFlex,
-                      currentAnswer.length === 0 && styles.checkButtonDisabled,
-                    ]}
-                    onPress={checkAnswer}
-                    disabled={currentAnswer.length === 0}
-                  >
-                    <Text style={styles.checkButtonText}>Check</Text>
-                  </TouchableOpacity>
-                ) : (
+                {showResult && (
                   <TouchableOpacity style={[styles.oneMoreButton, styles.oneMoreButtonFlex]} onPress={fetchOneMoreWord}>
                     <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
                     <Text style={styles.oneMoreButtonText}>One More</Text>
@@ -731,7 +744,7 @@ export default function WordUnjumbleGame() {
                 
                 {/* Summary Button - Always visible */}
                 <TouchableOpacity 
-                  style={styles.summaryButton} 
+                  style={[styles.summaryButton, !showResult && styles.summaryButtonFull]} 
                   onPress={() => setShowSummary(true)}
                 >
                   <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
@@ -1550,5 +1563,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.card,
+  },
+  // Letter count indicator
+  letterCountIndicator: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  // Full width summary button when Check is hidden
+  summaryButtonFull: {
+    flex: 1,
   },
 });
