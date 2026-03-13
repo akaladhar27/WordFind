@@ -481,11 +481,13 @@ export default function WordUnjumbleGame() {
                 <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
               </View>
             )}
+            {/* New Game Button */}
             <TouchableOpacity
-              style={styles.settingsIcon}
+              style={styles.newGameButton}
               onPress={openSettings}
             >
-              <Ionicons name="settings-outline" size={24} color={COLORS.primary} />
+              <Ionicons name="add-outline" size={18} color={COLORS.card} />
+              <Text style={styles.newGameButtonText}>New</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -625,11 +627,14 @@ export default function WordUnjumbleGame() {
               );
             })}
 
-            {/* One More Button - always visible at bottom */}
-            <TouchableOpacity style={styles.oneMoreButton} onPress={fetchOneMoreWord}>
-              <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
-              <Text style={styles.oneMoreButtonText}>One More</Text>
-            </TouchableOpacity>
+            {/* One More Button - only show if all words are checked and at least one is correct */}
+            {Object.keys(gameState.results).length === gameState.words.length && 
+             Object.values(gameState.results).some(r => r === true) && (
+              <TouchableOpacity style={styles.oneMoreButton} onPress={fetchOneMoreWord}>
+                <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
+                <Text style={styles.oneMoreButtonText}>One More</Text>
+              </TouchableOpacity>
+            )}
             
             {/* Summary Button */}
             <TouchableOpacity 
@@ -757,9 +762,9 @@ export default function WordUnjumbleGame() {
                 </Text>
               )}
               
-              {/* Button row - Only show One More after result, Summary always visible */}
+              {/* Button row - Only show One More if correct, Summary always visible */}
               <View style={styles.singleWordButtonRow}>
-                {showResult && (
+                {showResult && isCorrect && (
                   <TouchableOpacity style={[styles.oneMoreButton, styles.oneMoreButtonFlex]} onPress={fetchOneMoreWord}>
                     <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
                     <Text style={styles.oneMoreButtonText}>One More</Text>
@@ -768,7 +773,7 @@ export default function WordUnjumbleGame() {
                 
                 {/* Summary Button - Always visible */}
                 <TouchableOpacity 
-                  style={[styles.summaryButton, !showResult && styles.summaryButtonFull]} 
+                  style={[styles.summaryButton, (!showResult || !isCorrect) && styles.summaryButtonFull]} 
                   onPress={() => setShowSummary(true)}
                 >
                   <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
@@ -956,6 +961,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  newGameButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+  },
+  newGameButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.card,
   },
   loadingContainer: {
     flex: 1,
