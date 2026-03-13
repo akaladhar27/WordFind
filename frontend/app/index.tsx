@@ -591,17 +591,40 @@ export default function WordUnjumbleGame() {
                     onChangeText={(text) => {
                       // Only allow letters
                       const cleanText = text.replace(/[^a-zA-Z]/g, '');
+                      const currentAnswer = gameState.answers[word.id] || '';
+                      
+                      // If user is deleting and answer was incorrect, reset the result
+                      if (isWordChecked && !isWordCorrect && cleanText.length < currentAnswer.length) {
+                        setGameState(prev => {
+                          const newResults = { ...prev.results };
+                          delete newResults[word.id];
+                          return {
+                            ...prev,
+                            answers: { ...prev.answers, [word.id]: cleanText },
+                            results: newResults,
+                          };
+                        });
+                        return;
+                      }
+                      
                       updateAnswer(word.id, cleanText);
                       
                       // Auto-check when letter count matches
                       if (cleanText.length === word.length && !isWordChecked) {
                         setTimeout(() => {
                           const correct = cleanText.toLowerCase().trim() === word.original.toLowerCase();
-                          setGameState(prev => ({
-                            ...prev,
-                            results: { ...prev.results, [word.id]: correct },
-                            score: correct ? prev.score + 1 : prev.score,
-                          }));
+                          if (correct) {
+                            setGameState(prev => ({
+                              ...prev,
+                              results: { ...prev.results, [word.id]: correct },
+                              score: prev.score + 1,
+                            }));
+                          } else {
+                            setGameState(prev => ({
+                              ...prev,
+                              results: { ...prev.results, [word.id]: correct },
+                            }));
+                          }
                         }, 100);
                       }
                     }}
@@ -610,19 +633,15 @@ export default function WordUnjumbleGame() {
                     autoCapitalize="none"
                     autoCorrect={false}
                     maxLength={word.length}
-                    editable={!isWordChecked}
+                    editable={!isWordCorrect}
                   />
                   
-                  {/* Letter count or correct answer */}
-                  {!isWordChecked ? (
+                  {/* Letter count - only show if not checked or incorrect (no answer shown) */}
+                  {(!isWordChecked || !isWordCorrect) && (
                     <Text style={styles.multiWordLetterCount}>
                       {(gameState.answers[word.id] || '').length} / {word.length} letters
                     </Text>
-                  ) : !isWordCorrect ? (
-                    <Text style={styles.multiWordCorrectAnswer}>
-                      Answer: {word.original.toUpperCase()}
-                    </Text>
-                  ) : null}
+                  )}
                 </View>
               );
             })}
@@ -717,10 +736,18 @@ export default function WordUnjumbleGame() {
                 onChangeText={(text) => {
                   // Only allow letters
                   const cleanText = text.replace(/[^a-zA-Z]/g, '');
+                  
+                  // If user is deleting (text is shorter), reset the incorrect state
+                  if (showResult && !isCorrect && cleanText.length < currentAnswer.length) {
+                    setShowResult(false);
+                    setCurrentAnswer(cleanText);
+                    return;
+                  }
+                  
                   setCurrentAnswer(cleanText);
                   
-                  // Reset result when user modifies the answer
-                  if (showResult) {
+                  // Reset result when user modifies the answer (only if was correct - incorrect can retry)
+                  if (showResult && isCorrect) {
                     setShowResult(false);
                   }
                   
@@ -731,12 +758,14 @@ export default function WordUnjumbleGame() {
                       const correct = cleanText.toLowerCase().trim() === currentWord.original.toLowerCase();
                       setIsCorrect(correct);
                       setShowResult(true);
-                      setGameState(prev => ({
-                        ...prev,
-                        answers: { ...prev.answers, [currentWord.id]: cleanText },
-                        results: { ...prev.results, [currentWord.id]: correct },
-                        score: correct ? prev.score + 1 : prev.score,
-                      }));
+                      if (correct) {
+                        setGameState(prev => ({
+                          ...prev,
+                          answers: { ...prev.answers, [currentWord.id]: cleanText },
+                          results: { ...prev.results, [currentWord.id]: correct },
+                          score: prev.score + 1,
+                        }));
+                      }
                     }, 100);
                   }
                 }}
@@ -745,20 +774,13 @@ export default function WordUnjumbleGame() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={currentWord.length}
-                editable={!showResult}
+                editable={!isCorrect || !showResult}
               />
               
               {/* Letter count indicator */}
               {!showResult && (
                 <Text style={styles.letterCountIndicator}>
                   {currentAnswer.length} / {currentWord.length} letters
-                </Text>
-              )}
-              
-              {/* Show correct answer if incorrect */}
-              {showResult && !isCorrect && (
-                <Text style={styles.correctAnswerInline}>
-                  Answer: <Text style={styles.correctWord}>{currentWord.original.toUpperCase()}</Text>
                 </Text>
               )}
               
@@ -1495,8 +1517,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.successDark,
   },
   inputIncorrect: {
-    backgroundColor: '#FEF3E7',
-    borderColor: '#D69E2E',
+    backgroundColor: '#FFF5F5',
+    borderColor: COLORS.errorDark,
   },
   correctAnswerInline: {
     fontSize: 14,
