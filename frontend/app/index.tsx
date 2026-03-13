@@ -499,7 +499,7 @@ export default function WordUnjumbleGame() {
         ) : gameCompleted ? (
           <GameCompletedScreen />
         ) : gameState.words.length > 1 ? (
-          /* Multi-word mode - show all words at once */
+          /* Multi-word mode - show all words at once with auto-check */
           <ScrollView
             contentContainerStyle={styles.gameContent}
             keyboardShouldPersistTaps="handled"
@@ -510,111 +510,135 @@ export default function WordUnjumbleGame() {
                 {gameState.words.length} words to unjumble
               </Text>
               <Text style={styles.scoreText}>
-                {wordLength} letters each
+                Score: {Object.values(gameState.results).filter(r => r === true).length}
               </Text>
             </View>
 
             {/* All Words List */}
-            {gameState.words.map((word, index) => (
-              <View key={word.id} style={styles.multiWordCard}>
-                <View style={styles.multiWordHeader}>
-                  <Text style={styles.multiWordNumber}>#{index + 1}</Text>
-                  {showResult && gameState.results[word.id] !== undefined && (
-                    <Ionicons
-                      name={gameState.results[word.id] ? 'checkmark-circle' : 'close-circle'}
-                      size={24}
-                      color={gameState.results[word.id] ? COLORS.successDark : COLORS.errorDark}
-                    />
-                  )}
-                </View>
-                
-                {/* Jumbled Letters */}
-                <View style={styles.multiWordLetters}>
-                  {word.jumbled.split('').map((letter, letterIndex) => (
-                    <View key={letterIndex} style={styles.smallLetterCard}>
-                      <Text style={styles.smallLetterText}>{letter.toUpperCase()}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* Hint Display and Button */}
-                {!showResult && (
-                  <View style={styles.hintSection}>
-                    {(hints[word.id] || []).length > 0 && (
-                      <Text style={styles.hintDisplay}>
-                        Hint: {getHintDisplay(word.id, word.original)}
-                      </Text>
+            {gameState.words.map((word, index) => {
+              const wordResult = gameState.results[word.id];
+              const isWordChecked = wordResult !== undefined;
+              const isWordCorrect = wordResult === true;
+              
+              return (
+                <View key={word.id} style={styles.multiWordCard}>
+                  <View style={styles.multiWordHeader}>
+                    <Text style={styles.multiWordNumber}>#{index + 1}</Text>
+                    {isWordChecked && (
+                      <Ionicons
+                        name={isWordCorrect ? 'checkmark-circle' : 'close-circle'}
+                        size={24}
+                        color={isWordCorrect ? COLORS.successDark : COLORS.errorDark}
+                      />
                     )}
-                    <View style={styles.actionButtonsRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.hintButton,
-                          !canGetHint(word.id, word.length) && styles.hintButtonDisabled,
-                        ]}
-                        onPress={() => getHint(word.id, word.original)}
-                        disabled={!canGetHint(word.id, word.length)}
-                      >
-                        <Ionicons name="bulb-outline" size={16} color={canGetHint(word.id, word.length) ? COLORS.hintDark : COLORS.textMuted} />
-                        <Text style={[
-                          styles.hintButtonText,
-                          !canGetHint(word.id, word.length) && styles.hintButtonTextDisabled,
-                        ]}>
-                          Hint ({(hints[word.id] || []).length}/{word.length - 1})
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.reshuffleButton}
-                        onPress={() => reshuffleWord(word.id)}
-                      >
-                        <Ionicons name="shuffle-outline" size={16} color={COLORS.primary} />
-                        <Text style={styles.reshuffleButtonText}>Shuffle</Text>
-                      </TouchableOpacity>
-                    </View>
                   </View>
-                )}
-                
-                {/* Answer Input */}
-                {!showResult ? (
+                  
+                  {/* Jumbled Letters */}
+                  <View style={styles.multiWordLetters}>
+                    {word.jumbled.split('').map((letter, letterIndex) => (
+                      <View key={letterIndex} style={styles.smallLetterCard}>
+                        <Text style={styles.smallLetterText}>{letter.toUpperCase()}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Hint Display and Button - only show if not checked */}
+                  {!isWordChecked && (
+                    <View style={styles.hintSection}>
+                      {(hints[word.id] || []).length > 0 && (
+                        <Text style={styles.hintDisplay}>
+                          Hint: {getHintDisplay(word.id, word.original)}
+                        </Text>
+                      )}
+                      <View style={styles.actionButtonsRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.hintButton,
+                            !canGetHint(word.id, word.length) && styles.hintButtonDisabled,
+                          ]}
+                          onPress={() => getHint(word.id, word.original)}
+                          disabled={!canGetHint(word.id, word.length)}
+                        >
+                          <Ionicons name="bulb-outline" size={16} color={canGetHint(word.id, word.length) ? COLORS.hintDark : COLORS.textMuted} />
+                          <Text style={[
+                            styles.hintButtonText,
+                            !canGetHint(word.id, word.length) && styles.hintButtonTextDisabled,
+                          ]}>
+                            Hint ({(hints[word.id] || []).length}/{word.length - 1})
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.reshuffleButton}
+                          onPress={() => reshuffleWord(word.id)}
+                        >
+                          <Ionicons name="shuffle-outline" size={16} color={COLORS.primary} />
+                          <Text style={styles.reshuffleButtonText}>Shuffle</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {/* Answer Input with auto-check */}
                   <TextInput
-                    style={styles.multiWordInput}
+                    style={[
+                      styles.multiWordInput,
+                      isWordChecked && isWordCorrect && styles.inputCorrect,
+                      isWordChecked && !isWordCorrect && styles.inputIncorrect,
+                    ]}
                     value={gameState.answers[word.id] || ''}
-                    onChangeText={(text) => updateAnswer(word.id, text)}
+                    onChangeText={(text) => {
+                      // Only allow letters
+                      const cleanText = text.replace(/[^a-zA-Z]/g, '');
+                      updateAnswer(word.id, cleanText);
+                      
+                      // Auto-check when letter count matches
+                      if (cleanText.length === word.length && !isWordChecked) {
+                        setTimeout(() => {
+                          const correct = cleanText.toLowerCase().trim() === word.original.toLowerCase();
+                          setGameState(prev => ({
+                            ...prev,
+                            results: { ...prev.results, [word.id]: correct },
+                            score: correct ? prev.score + 1 : prev.score,
+                          }));
+                        }, 100);
+                      }
+                    }}
                     placeholder="Type your answer..."
                     placeholderTextColor={COLORS.textMuted}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    maxLength={word.length}
+                    editable={!isWordChecked}
                   />
-                ) : (
-                  <View style={styles.multiWordResult}>
-                    <Text style={[
-                      styles.multiWordAnswer,
-                      gameState.results[word.id] ? styles.answerCorrect : styles.answerIncorrect
-                    ]}>
-                      Your answer: {gameState.answers[word.id] || '(empty)'}
+                  
+                  {/* Letter count or correct answer */}
+                  {!isWordChecked ? (
+                    <Text style={styles.multiWordLetterCount}>
+                      {(gameState.answers[word.id] || '').length} / {word.length} letters
                     </Text>
-                    {!gameState.results[word.id] && (
-                      <Text style={styles.multiWordCorrect}>
-                        Correct: {word.original.toUpperCase()}
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-            ))}
+                  ) : !isWordCorrect ? (
+                    <Text style={styles.multiWordCorrectAnswer}>
+                      Answer: {word.original.toUpperCase()}
+                    </Text>
+                  ) : null}
+                </View>
+              );
+            })}
 
-            {/* Check All Button */}
-            {!showResult && (
-              <TouchableOpacity
-                style={[
-                  styles.checkAllButton,
-                  !allAnswersFilled() && styles.checkButtonDisabled,
-                ]}
-                onPress={checkAllAnswers}
-                disabled={!allAnswersFilled()}
-              >
-                <Text style={styles.checkAllButtonText}>Check All Answers</Text>
-              </TouchableOpacity>
-            )}
+            {/* One More Button - always visible at bottom */}
+            <TouchableOpacity style={styles.oneMoreButton} onPress={fetchOneMoreWord}>
+              <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
+              <Text style={styles.oneMoreButtonText}>One More</Text>
+            </TouchableOpacity>
+            
+            {/* Summary Button */}
+            <TouchableOpacity 
+              style={styles.multiWordSummaryButton} 
+              onPress={() => setShowSummary(true)}
+            >
+              <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
+              <Text style={styles.summaryButtonText}>Summary</Text>
+            </TouchableOpacity>
           </ScrollView>
         ) : currentWord ? (
           /* Single word mode - original behavior */
@@ -1574,5 +1598,32 @@ const styles = StyleSheet.create({
   // Full width summary button when Check is hidden
   summaryButtonFull: {
     flex: 1,
+  },
+  // Multi-word mode new styles
+  multiWordLetterCount: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  multiWordCorrectAnswer: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  multiWordSummaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 6,
+    marginTop: 12,
+    marginBottom: 20,
   },
 });
