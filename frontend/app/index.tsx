@@ -77,6 +77,7 @@ export default function WordUnjumbleGame() {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   // Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -675,81 +676,133 @@ export default function WordUnjumbleGame() {
               )}
             </View>
 
-            {/* Answer Input */}
-            {!showResult ? (
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  value={currentAnswer}
-                  onChangeText={setCurrentAnswer}
-                  placeholder="Type your answer..."
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  onSubmitEditing={currentAnswer.length > 0 ? checkAnswer : undefined}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.checkButton,
-                    currentAnswer.length === 0 && styles.checkButtonDisabled,
-                  ]}
-                  onPress={checkAnswer}
-                  disabled={currentAnswer.length === 0}
-                >
-                  <Text style={styles.checkButtonText}>Check</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.resultContainer}>
-                <View
-                  style={[
-                    styles.resultBox,
-                    isCorrect ? styles.resultCorrect : styles.resultIncorrect,
-                  ]}
-                >
-                  <Ionicons
-                    name={isCorrect ? 'checkmark-circle' : 'close-circle'}
-                    size={40}
-                    color={isCorrect ? COLORS.successDark : COLORS.errorDark}
-                  />
-                  <Text
+            {/* Answer Input - Always visible in single-word mode */}
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[
+                  styles.input,
+                  showResult && isCorrect && styles.inputCorrect,
+                  showResult && !isCorrect && styles.inputIncorrect,
+                ]}
+                value={currentAnswer}
+                onChangeText={(text) => {
+                  setCurrentAnswer(text);
+                  // Reset result when user modifies the answer
+                  if (showResult) {
+                    setShowResult(false);
+                  }
+                }}
+                placeholder="Type your answer..."
+                placeholderTextColor={COLORS.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={currentAnswer.length > 0 && !showResult ? checkAnswer : undefined}
+                editable={!showResult}
+              />
+              
+              {/* Show correct answer if incorrect */}
+              {showResult && !isCorrect && (
+                <Text style={styles.correctAnswerInline}>
+                  Answer: <Text style={styles.correctWord}>{currentWord.original.toUpperCase()}</Text>
+                </Text>
+              )}
+              
+              {/* Button row */}
+              <View style={styles.singleWordButtonRow}>
+                {!showResult ? (
+                  <TouchableOpacity
                     style={[
-                      styles.resultText,
-                      isCorrect ? styles.resultTextCorrect : styles.resultTextIncorrect,
+                      styles.checkButton,
+                      styles.checkButtonFlex,
+                      currentAnswer.length === 0 && styles.checkButtonDisabled,
                     ]}
+                    onPress={checkAnswer}
+                    disabled={currentAnswer.length === 0}
                   >
-                    {isCorrect ? 'Correct!' : 'Incorrect!'}
-                  </Text>
-                  {!isCorrect && (
-                    <Text style={styles.correctAnswerText}>
-                      The word was: <Text style={styles.correctWord}>{currentWord.original.toUpperCase()}</Text>
-                    </Text>
-                  )}
-                </View>
-                
-                {/* Show different button based on mode */}
-                {wordCount === 1 ? (
-                  /* Single-word mode: Show "One More" button */
-                  <TouchableOpacity style={styles.oneMoreButton} onPress={fetchOneMoreWord}>
+                    <Text style={styles.checkButtonText}>Check</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={[styles.oneMoreButton, styles.oneMoreButtonFlex]} onPress={fetchOneMoreWord}>
                     <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
                     <Text style={styles.oneMoreButtonText}>One More</Text>
                   </TouchableOpacity>
-                ) : (
-                  /* Multi-word mode: Show "Next Word" or "See Results" */
-                  <TouchableOpacity style={styles.nextButton} onPress={nextWord}>
-                    <Text style={styles.nextButtonText}>
-                      {gameState.currentIndex < gameState.words.length - 1
-                        ? 'Next Word'
-                        : 'See Results'}
-                    </Text>
-                    <Ionicons name="arrow-forward" size={20} color={COLORS.card} />
-                  </TouchableOpacity>
                 )}
+                
+                {/* Summary Button - Always visible */}
+                <TouchableOpacity 
+                  style={styles.summaryButton} 
+                  onPress={() => setShowSummary(true)}
+                >
+                  <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.summaryButtonText}>Summary</Text>
+                </TouchableOpacity>
               </View>
-            )}
+            </View>
           </ScrollView>
         ) : null}
+
+        {/* Summary Modal for Single-Word Mode */}
+        <Modal
+          visible={showSummary}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowSummary(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.summaryModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Game Summary</Text>
+                <TouchableOpacity onPress={() => setShowSummary(false)}>
+                  <Ionicons name="close" size={24} color={COLORS.text} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.summaryStats}>
+                <View style={styles.summaryStatItem}>
+                  <Text style={styles.summaryStatNumber}>{Object.keys(gameState.results).length}</Text>
+                  <Text style={styles.summaryStatLabel}>Played</Text>
+                </View>
+                <View style={[styles.summaryStatItem, styles.summaryStatCorrect]}>
+                  <Text style={[styles.summaryStatNumber, { color: COLORS.successDark }]}>
+                    {Object.values(gameState.results).filter(r => r === true).length}
+                  </Text>
+                  <Text style={styles.summaryStatLabel}>Correct</Text>
+                </View>
+                <View style={[styles.summaryStatItem, styles.summaryStatIncorrect]}>
+                  <Text style={[styles.summaryStatNumber, { color: COLORS.errorDark }]}>
+                    {Object.values(gameState.results).filter(r => r === false).length}
+                  </Text>
+                  <Text style={styles.summaryStatLabel}>Incorrect</Text>
+                </View>
+              </View>
+              
+              <View style={styles.summaryTimeContainer}>
+                <Ionicons name="time-outline" size={20} color={COLORS.textLight} />
+                <Text style={styles.summaryTime}>Time: {formatTime(elapsedTime)}</Text>
+              </View>
+              
+              <View style={styles.summaryActions}>
+                <TouchableOpacity 
+                  style={styles.summaryCloseButton} 
+                  onPress={() => setShowSummary(false)}
+                >
+                  <Text style={styles.summaryCloseButtonText}>Continue Playing</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.summaryRestartButton} 
+                  onPress={() => {
+                    setShowSummary(false);
+                    fetchWords();
+                  }}
+                >
+                  <Ionicons name="refresh" size={18} color={COLORS.card} />
+                  <Text style={styles.summaryRestartButtonText}>Start Over</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Settings Modal */}
         <Modal
@@ -1374,6 +1427,127 @@ const styles = StyleSheet.create({
   },
   oneMoreButtonText: {
     fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  oneMoreButtonFlex: {
+    flex: 1,
+  },
+  // Input box color states
+  inputCorrect: {
+    backgroundColor: '#E6FFED',
+    borderColor: COLORS.successDark,
+  },
+  inputIncorrect: {
+    backgroundColor: '#FEF3E7',
+    borderColor: '#D69E2E',
+  },
+  correctAnswerInline: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  // Single word button row
+  singleWordButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  checkButtonFlex: {
+    flex: 1,
+  },
+  // Summary button
+  summaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 6,
+  },
+  summaryButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.primary,
+  },
+  // Summary modal styles
+  summaryModalContent: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  summaryStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 24,
+  },
+  summaryStatItem: {
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    minWidth: 80,
+  },
+  summaryStatCorrect: {
+    backgroundColor: '#E6FFED',
+  },
+  summaryStatIncorrect: {
+    backgroundColor: '#FEF3E7',
+  },
+  summaryStatNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  summaryStatLabel: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginTop: 4,
+  },
+  summaryTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 24,
+  },
+  summaryTime: {
+    fontSize: 16,
+    color: COLORS.textLight,
+  },
+  summaryActions: {
+    gap: 12,
+  },
+  summaryCloseButton: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  summaryCloseButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  summaryRestartButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryRestartButtonText: {
+    fontSize: 16,
     fontWeight: '600',
     color: COLORS.card,
   },
