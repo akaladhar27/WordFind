@@ -293,7 +293,46 @@ export default function WordUnjumbleGame() {
         currentIndex: prev.currentIndex + 1,
       }));
     } else {
+      setTimerRunning(false);
       setGameCompleted(true);
+    }
+  };
+
+  // Fetch one more word (for single-word mode continuous play)
+  const fetchOneMoreWord = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/words`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          word_length: wordLength,
+          word_count: 1,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch word');
+      }
+      
+      const data = await response.json();
+      const newWord = data.words[0];
+      
+      // Add the new word to the game and update score tracking
+      setGameState(prev => ({
+        ...prev,
+        words: [...prev.words, newWord],
+        currentIndex: prev.words.length, // Move to the new word
+      }));
+      
+      // Reset for the new word
+      setCurrentAnswer('');
+      setShowResult(false);
+      
+      // Clear hints for new word (keep old hints for history)
+    } catch (error) {
+      console.error('Error fetching one more word:', error);
     }
   };
 
@@ -689,14 +728,24 @@ export default function WordUnjumbleGame() {
                   )}
                 </View>
                 
-                <TouchableOpacity style={styles.nextButton} onPress={nextWord}>
-                  <Text style={styles.nextButtonText}>
-                    {gameState.currentIndex < gameState.words.length - 1
-                      ? 'Next Word'
-                      : 'See Results'}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={20} color={COLORS.card} />
-                </TouchableOpacity>
+                {/* Show different button based on mode */}
+                {wordCount === 1 ? (
+                  /* Single-word mode: Show "One More" button */
+                  <TouchableOpacity style={styles.oneMoreButton} onPress={fetchOneMoreWord}>
+                    <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
+                    <Text style={styles.oneMoreButtonText}>One More</Text>
+                  </TouchableOpacity>
+                ) : (
+                  /* Multi-word mode: Show "Next Word" or "See Results" */
+                  <TouchableOpacity style={styles.nextButton} onPress={nextWord}>
+                    <Text style={styles.nextButtonText}>
+                      {gameState.currentIndex < gameState.words.length - 1
+                        ? 'Next Word'
+                        : 'See Results'}
+                    </Text>
+                    <Ionicons name="arrow-forward" size={20} color={COLORS.card} />
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </ScrollView>
@@ -1312,5 +1361,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: COLORS.primary,
+  },
+  // One More button styles
+  oneMoreButton: {
+    backgroundColor: COLORS.successDark,
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  oneMoreButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
   },
 });
