@@ -186,10 +186,12 @@ export default function WordUnjumbleGame() {
     setTimerRunning(false);
     setHints({});
     try {
+        
       const response = await fetch(`${BACKEND_URL}/api/words`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
           word_length: wordLength,
@@ -468,7 +470,7 @@ export default function WordUnjumbleGame() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Word Unjumble</Text>
+            <Text style={styles.title}>Word Find</Text>
             <Text style={styles.subtitle}>
               {wordLength} letters • {wordCount} word{wordCount > 1 ? 's' : ''}
             </Text>
@@ -951,6 +953,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   container: {
     flex: 1,
