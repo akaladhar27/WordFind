@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   TextInput,
   Modal,
@@ -10,417 +9,99 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Keyboard,
   SafeAreaView,
   StatusBar,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-
-// Types
-interface JumbledWord {
-  id: string;
-  original: string;
-  jumbled: string;
-  length: number;
-}
-
-interface GameState {
-  words: JumbledWord[];
-  currentIndex: number;
-  score: number;
-  answers: { [key: string]: string };
-  results: { [key: string]: boolean | null };
-}
-
-interface HintState {
-  [wordId: string]: number[]; // Array of revealed letter indices
-}
-
-// Neutral color palette
-const COLORS = {
-  background: '#F5F5F5',
-  card: '#FFFFFF',
-  primary: '#4A5568',
-  primaryDark: '#2D3748',
-  text: '#333333',
-  textLight: '#666666',
-  textMuted: '#999999',
-  border: '#E2E8F0',
-  success: '#68D391',
-  successDark: '#48BB78',
-  error: '#FC8181',
-  errorDark: '#F56565',
-  accent: '#718096',
-  hint: '#ECC94B',
-  hintDark: '#D69E2E',
-};
+import { COLORS } from './types';
+import { styles } from './styles';
+import { useGameLogic } from './useGameLogic';
 
 export default function WordUnjumbleGame() {
-  // Game settings
-  const [wordLength, setWordLength] = useState(5);
-  const [wordCount, setWordCount] = useState(1);
-  const [showSettings, setShowSettings] = useState(false);
-  
-  // Game state
-  const [gameState, setGameState] = useState<GameState>({
-    words: [],
-    currentIndex: 0,
-    score: 0,
-    answers: {},
-    results: {},
-  });
-  const [loading, setLoading] = useState(false);
-  const [gameStarted, setGameStarted] = useState(false);
-  const [gameCompleted, setGameCompleted] = useState(false);
-  const [currentAnswer, setCurrentAnswer] = useState('');
-  const [showResult, setShowResult] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
-  const [showSummary, setShowSummary] = useState(false);
+  const {
+    wordLength,
+    wordCount,
+    showSettings,
+    tempWordLength,
+    tempWordCount,
+    setTempWordLength,
+    setTempWordCount,
+    openSettings,
+    closeSettings,
+    applySettings,
+    gameState,
+    loading,
+    gameStarted,
+    gameCompleted,
+    currentAnswer,
+    showResult,
+    isCorrect,
+    showSummary,
+    setShowSummary,
+    elapsedTime,
+    formatTime,
+    timeLimit,
+    timeLimitExpired,
+    tempTimeLimit,
+    setTempTimeLimit,
+    hints,
+    getHint,
+    getHintDisplay,
+    canGetHint,
+    fetchWords,
+    fetchOneMoreWord,
+    reshuffleWord,
+    handleSingleWordChange,
+    handleMultiWordChange,
+    handleWordleChange,
+    gameStyle,
+    tempGameStyle,
+    setTempGameStyle,
+    wordleGuesses,
+    wordleCurrentGuess,
+    wordleAttempt,
+    wordleGameOver,
+    wordleWon,
+  } = useGameLogic();
 
-  // Timer state
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const screenWidth = Dimensions.get('window').width;
+  const tileSize = Math.min(56, Math.floor((screenWidth - 40 - (wordLength - 1) * 6) / wordLength));
 
-  // Hint state - tracks revealed letter indices for each word
-  const [hints, setHints] = useState<HintState>({});
-
-  // Timer effect
-  useEffect(() => {
-    if (timerRunning && !gameCompleted) {
-      timerRef.current = setInterval(() => {
-        setElapsedTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+  const getTileStates = (guess: string, answer: string): ('correct' | 'present' | 'absent')[] => {
+    const result: ('correct' | 'present' | 'absent')[] = Array(guess.length).fill('absent');
+    const answerArr = answer.toLowerCase().split('');
+    const guessArr = guess.toLowerCase().split('');
+    // First pass: correct position (green)
+    guessArr.forEach((letter, i) => {
+      if (letter === answerArr[i]) {
+        result[i] = 'correct';
+        answerArr[i] = '#';
+        guessArr[i] = '*';
       }
-    }
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [timerRunning, gameCompleted]);
-
-  // Format time as MM:SS
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Get hint for a word - reveals one unrevealed letter
-  const getHint = (wordId: string, originalWord: string) => {
-    const currentHints = hints[wordId] || [];
-    const unrevealedIndices: number[] = [];
-    
-    // Find indices that haven't been revealed yet
-    for (let i = 0; i < originalWord.length; i++) {
-      if (!currentHints.includes(i)) {
-        unrevealedIndices.push(i);
-      }
-    }
-    
-    if (unrevealedIndices.length === 0) return; // All letters already revealed
-    
-    // Pick a random unrevealed index
-    const randomIndex = unrevealedIndices[Math.floor(Math.random() * unrevealedIndices.length)];
-    
-    setHints(prev => ({
-      ...prev,
-      [wordId]: [...(prev[wordId] || []), randomIndex],
-    }));
-  };
-
-  // Get hint display string for a word
-  const getHintDisplay = (wordId: string, originalWord: string): string => {
-    const revealedIndices = hints[wordId] || [];
-    if (revealedIndices.length === 0) return '';
-    
-    return originalWord
-      .split('')
-      .map((letter, index) => (revealedIndices.includes(index) ? letter.toUpperCase() : '_'))
-      .join(' ');
-  };
-
-  // Check if hint is available (not all letters revealed)
-  const canGetHint = (wordId: string, wordLength: number): boolean => {
-    const revealedCount = (hints[wordId] || []).length;
-    return revealedCount < wordLength - 1; // Leave at least one letter unrevealed
-  };
-
-  // Reshuffle letters of a word
-  const reshuffleWord = (wordId: string) => {
-    setGameState(prev => {
-      const wordIndex = prev.words.findIndex(w => w.id === wordId);
-      if (wordIndex === -1) return prev;
-      
-      const word = prev.words[wordIndex];
-      const letters = word.jumbled.split('');
-      
-      // Shuffle the letters
-      for (let i = letters.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [letters[i], letters[j]] = [letters[j], letters[i]];
-      }
-      
-      const newJumbled = letters.join('');
-      
-      // Update the word with new jumbled letters
-      const newWords = [...prev.words];
-      newWords[wordIndex] = { ...word, jumbled: newJumbled };
-      
-      return { ...prev, words: newWords };
     });
-  };
-
-  // Fetch words from API
-  const fetchWords = useCallback(async () => {
-    setLoading(true);
-    // Reset timer and hints
-    setElapsedTime(0);
-    setTimerRunning(false);
-    setHints({});
-    try {
-        
-      const response = await fetch(`${BACKEND_URL}/api/words`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          word_length: wordLength,
-          word_count: wordCount,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch words');
+    // Second pass: present but wrong position (yellow)
+    guessArr.forEach((letter, i) => {
+      if (letter === '*') return;
+      const j = answerArr.indexOf(letter);
+      if (j !== -1) {
+        result[i] = 'present';
+        answerArr[j] = '#';
       }
-      
-      const data = await response.json();
-      
-      setGameState({
-        words: data.words,
-        currentIndex: 0,
-        score: 0,
-        answers: {},
-        results: {},
-      });
-      setGameStarted(true);
-      setGameCompleted(false);
-      setCurrentAnswer('');
-      setShowResult(false);
-      // Start timer when game loads
-      setTimerRunning(true);
-    } catch (error) {
-      console.error('Error fetching words:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [wordLength, wordCount]);
-
-  // Start new game on mount
-  useEffect(() => {
-    fetchWords();
-  }, []);
-
-  // Check answer for single word mode
-  const checkAnswer = () => {
-    Keyboard.dismiss();
-    const currentWord = gameState.words[gameState.currentIndex];
-    const correct = currentAnswer.toLowerCase().trim() === currentWord.original.toLowerCase();
-    
-    setIsCorrect(correct);
-    setShowResult(true);
-    
-    setGameState(prev => ({
-      ...prev,
-      answers: { ...prev.answers, [currentWord.id]: currentAnswer },
-      results: { ...prev.results, [currentWord.id]: correct },
-      score: correct ? prev.score + 1 : prev.score,
-    }));
-  };
-
-  // Check all answers for multi-word mode
-  const checkAllAnswers = () => {
-    Keyboard.dismiss();
-    let correctCount = 0;
-    const newResults: { [key: string]: boolean } = {};
-    
-    gameState.words.forEach(word => {
-      const userAnswer = gameState.answers[word.id] || '';
-      const isCorrect = userAnswer.toLowerCase().trim() === word.original.toLowerCase();
-      newResults[word.id] = isCorrect;
-      if (isCorrect) correctCount++;
     });
-    
-    setGameState(prev => ({
-      ...prev,
-      results: newResults,
-      score: correctCount,
-    }));
-    setShowResult(true);
-    setGameCompleted(true);
-  };
-
-  // Update answer for a specific word in multi-word mode
-  const updateAnswer = (wordId: string, answer: string) => {
-    setGameState(prev => ({
-      ...prev,
-      answers: { ...prev.answers, [wordId]: answer },
-    }));
-  };
-
-  // Check if all answers are filled
-  const allAnswersFilled = () => {
-    return gameState.words.every(word => {
-      const answer = gameState.answers[word.id];
-      return answer && answer.trim().length > 0;
-    });
-  };
-
-  // Move to next word
-  const nextWord = () => {
-    setShowResult(false);
-    setCurrentAnswer('');
-    
-    if (gameState.currentIndex < gameState.words.length - 1) {
-      setGameState(prev => ({
-        ...prev,
-        currentIndex: prev.currentIndex + 1,
-      }));
-    } else {
-      setTimerRunning(false);
-      setGameCompleted(true);
-    }
-  };
-
-  // Fetch one more word (for single-word mode continuous play)
-  const fetchOneMoreWord = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/words`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          word_length: wordLength,
-          word_count: 1,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch word');
-      }
-      
-      const data = await response.json();
-      const newWord = data.words[0];
-      
-      // Add the new word to the game and update score tracking
-      setGameState(prev => ({
-        ...prev,
-        words: [...prev.words, newWord],
-        currentIndex: prev.words.length, // Move to the new word
-      }));
-      
-      // Reset for the new word
-      setCurrentAnswer('');
-      setShowResult(false);
-      
-      // Clear hints for new word (keep old hints for history)
-    } catch (error) {
-      console.error('Error fetching one more word:', error);
-    }
-  };
-
-  // Temporary settings state for modal (to prevent blinking)
-  const [tempWordLength, setTempWordLength] = useState(wordLength);
-  const [tempWordCount, setTempWordCount] = useState(wordCount);
-
-  // Open settings modal with current values
-  const openSettings = () => {
-    setTempWordLength(wordLength);
-    setTempWordCount(wordCount);
-    setShowSettings(true);
-  };
-
-  // Close settings without applying
-  const closeSettings = () => {
-    setShowSettings(false);
-  };
-
-  // Apply settings and start new game
-  const applySettings = () => {
-    setWordLength(tempWordLength);
-    setWordCount(tempWordCount);
-    setShowSettings(false);
-    // Fetch words with new settings
-    fetchWordsWithSettings(tempWordLength, tempWordCount);
-  };
-
-  // Fetch words with specific settings
-  const fetchWordsWithSettings = async (length: number, count: number) => {
-    setLoading(true);
-    // Reset timer and hints
-    setElapsedTime(0);
-    setTimerRunning(false);
-    setHints({});
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/words`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          word_length: length,
-          word_count: count,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch words');
-      }
-      
-      const data = await response.json();
-      
-      setGameState({
-        words: data.words,
-        currentIndex: 0,
-        score: 0,
-        answers: {},
-        results: {},
-      });
-      setGameStarted(true);
-      setGameCompleted(false);
-      setCurrentAnswer('');
-      setShowResult(false);
-      // Start timer when game loads
-      setTimerRunning(true);
-    } catch (error) {
-      console.error('Error fetching words:', error);
-    } finally {
-      setLoading(false);
-    }
+    return result;
   };
 
   // Render letter cards for jumbled word
-  const renderJumbledWord = (word: string) => {
-    return (
-      <View style={styles.letterContainer}>
-        {word.split('').map((letter, index) => (
-          <View key={index} style={styles.letterCard}>
-            <Text style={styles.letterText}>{letter.toUpperCase()}</Text>
-          </View>
-        ))}
-      </View>
-    );
-  };
+  const renderJumbledWord = (word: string) => (
+    <View style={styles.letterContainer}>
+      {word.split('').map((letter, index) => (
+        <View key={index} style={styles.letterCard}>
+          <Text style={styles.letterText}>{letter.toUpperCase()}</Text>
+        </View>
+      ))}
+    </View>
+  );
 
   // Game Completed Screen
   const GameCompletedScreen = () => (
@@ -437,7 +118,6 @@ export default function WordUnjumbleGame() {
         <Ionicons name="time-outline" size={20} color={COLORS.textLight} />
         <Text style={styles.completedTime}>Time: {formatTime(elapsedTime)}</Text>
       </View>
-      
       <View style={styles.completedButtons}>
         <TouchableOpacity
           style={[styles.completedButton, styles.playAgainButton]}
@@ -446,7 +126,6 @@ export default function WordUnjumbleGame() {
           <Ionicons name="refresh" size={20} color={COLORS.card} />
           <Text style={styles.playAgainText}>Play Again</Text>
         </TouchableOpacity>
-        
         <TouchableOpacity
           style={[styles.completedButton, styles.settingsButton]}
           onPress={openSettings}
@@ -473,21 +152,31 @@ export default function WordUnjumbleGame() {
             <Text style={styles.title}>Word Find</Text>
             <Text style={styles.subtitle}>
               {wordLength} letters • {wordCount} word{wordCount > 1 ? 's' : ''}
+              {timeLimit !== null ? ` • ${timeLimit / 60}m limit` : ''}
             </Text>
           </View>
           <View style={styles.headerRight}>
-            {/* Timer Display */}
-            {gameStarted && !loading && (
-              <View style={styles.timerContainer}>
-                <Ionicons name="time-outline" size={18} color={COLORS.primary} />
-                <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
+            {gameStarted && !loading && timeLimit !== null && (
+              <View style={[
+                styles.timerContainer,
+                timeLimit !== null && (timeLimit - elapsedTime) <= 30 && styles.timerContainerWarning,
+              ]}>
+                <Ionicons
+                  name="time-outline"
+                  size={18}
+                  color={timeLimit !== null && (timeLimit - elapsedTime) <= 30 ? COLORS.errorDark : COLORS.primary}
+                />
+                <Text style={[
+                  styles.timerText,
+                  timeLimit !== null && (timeLimit - elapsedTime) <= 30 && styles.timerTextWarning,
+                ]}>
+                  {timeLimit !== null
+                    ? formatTime(Math.max(0, timeLimit - elapsedTime))
+                    : formatTime(elapsedTime)}
+                </Text>
               </View>
             )}
-            {/* New Game Button */}
-            <TouchableOpacity
-              style={styles.newGameButton}
-              onPress={openSettings}
-            >
+            <TouchableOpacity style={styles.newGameButton} onPress={openSettings}>
               <Ionicons name="add-outline" size={18} color={COLORS.card} />
               <Text style={styles.newGameButtonText}>New</Text>
             </TouchableOpacity>
@@ -503,7 +192,7 @@ export default function WordUnjumbleGame() {
         ) : gameCompleted ? (
           <GameCompletedScreen />
         ) : gameState.words.length > 1 ? (
-          /* Multi-word mode - show all words at once with auto-check */
+          /* Multi-word mode */
           <ScrollView
             contentContainerStyle={styles.gameContent}
             keyboardShouldPersistTaps="handled"
@@ -511,7 +200,7 @@ export default function WordUnjumbleGame() {
             {/* Progress Header */}
             <View style={styles.progressContainer}>
               <Text style={styles.progressText}>
-                {gameState.words.length} words to unjumble
+                {gameState.words.length} Untangle the words
               </Text>
               <Text style={styles.scoreText}>
                 Score: {Object.values(gameState.results).filter(r => r === true).length}
@@ -523,7 +212,7 @@ export default function WordUnjumbleGame() {
               const wordResult = gameState.results[word.id];
               const isWordChecked = wordResult !== undefined;
               const isWordCorrect = wordResult === true;
-              
+
               return (
                 <View key={word.id} style={styles.multiWordCard}>
                   <View style={styles.multiWordHeader}>
@@ -536,7 +225,7 @@ export default function WordUnjumbleGame() {
                       />
                     )}
                   </View>
-                  
+
                   {/* Jumbled Letters */}
                   <View style={styles.multiWordLetters}>
                     {word.jumbled.split('').map((letter, letterIndex) => (
@@ -546,7 +235,7 @@ export default function WordUnjumbleGame() {
                     ))}
                   </View>
 
-                  {/* Hint Display and Button - only show if not checked */}
+                  {/* Hint Display and Button */}
                   {!isWordChecked && (
                     <View style={styles.hintSection}>
                       {(hints[word.id] || []).length > 0 && (
@@ -563,7 +252,11 @@ export default function WordUnjumbleGame() {
                           onPress={() => getHint(word.id, word.original)}
                           disabled={!canGetHint(word.id, word.length)}
                         >
-                          <Ionicons name="bulb-outline" size={16} color={canGetHint(word.id, word.length) ? COLORS.hintDark : COLORS.textMuted} />
+                          <Ionicons
+                            name="bulb-outline"
+                            size={16}
+                            color={canGetHint(word.id, word.length) ? COLORS.hintDark : COLORS.textMuted}
+                          />
                           <Text style={[
                             styles.hintButtonText,
                             !canGetHint(word.id, word.length) && styles.hintButtonTextDisabled,
@@ -581,8 +274,8 @@ export default function WordUnjumbleGame() {
                       </View>
                     </View>
                   )}
-                  
-                  {/* Answer Input with auto-check */}
+
+                  {/* Answer Input */}
                   <TextInput
                     style={[
                       styles.multiWordInput,
@@ -590,55 +283,16 @@ export default function WordUnjumbleGame() {
                       isWordChecked && !isWordCorrect && styles.inputIncorrect,
                     ]}
                     value={gameState.answers[word.id] || ''}
-                    onChangeText={(text) => {
-                      // Only allow letters
-                      const cleanText = text.replace(/[^a-zA-Z]/g, '');
-                      const currentAnswer = gameState.answers[word.id] || '';
-                      
-                      // If user is deleting and answer was incorrect, reset the result
-                      if (isWordChecked && !isWordCorrect && cleanText.length < currentAnswer.length) {
-                        setGameState(prev => {
-                          const newResults = { ...prev.results };
-                          delete newResults[word.id];
-                          return {
-                            ...prev,
-                            answers: { ...prev.answers, [word.id]: cleanText },
-                            results: newResults,
-                          };
-                        });
-                        return;
-                      }
-                      
-                      updateAnswer(word.id, cleanText);
-                      
-                      // Auto-check when letter count matches
-                      if (cleanText.length === word.length && !isWordChecked) {
-                        setTimeout(() => {
-                          const correct = cleanText.toLowerCase().trim() === word.original.toLowerCase();
-                          if (correct) {
-                            setGameState(prev => ({
-                              ...prev,
-                              results: { ...prev.results, [word.id]: correct },
-                              score: prev.score + 1,
-                            }));
-                          } else {
-                            setGameState(prev => ({
-                              ...prev,
-                              results: { ...prev.results, [word.id]: correct },
-                            }));
-                          }
-                        }, 100);
-                      }
-                    }}
+                    onChangeText={(text) => handleMultiWordChange(word, text)}
                     placeholder="Type your answer..."
                     placeholderTextColor={COLORS.textMuted}
                     autoCapitalize="none"
                     autoCorrect={false}
                     maxLength={word.length}
-                    editable={!isWordCorrect}
+                    editable={!isWordCorrect && !timeLimitExpired}
                   />
-                  
-                  {/* Letter count - only show if not checked or incorrect (no answer shown) */}
+
+                  {/* Letter count */}
                   {(!isWordChecked || !isWordCorrect) && (
                     <Text style={styles.multiWordLetterCount}>
                       {(gameState.answers[word.id] || '').length} / {word.length} letters
@@ -648,18 +302,122 @@ export default function WordUnjumbleGame() {
               );
             })}
 
-            {/* One More Button - only show if all words are checked and at least one is correct */}
-            {Object.keys(gameState.results).length === gameState.words.length && 
-             Object.values(gameState.results).some(r => r === true) && (
+            {/* One More Button */}
+            {Object.keys(gameState.results).length === gameState.words.length &&
+              Object.values(gameState.results).some(r => r === true) && (
               <TouchableOpacity style={styles.oneMoreButton} onPress={fetchOneMoreWord}>
                 <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
                 <Text style={styles.oneMoreButtonText}>One More</Text>
               </TouchableOpacity>
             )}
-            
+
             {/* Summary Button */}
-            <TouchableOpacity 
-              style={styles.multiWordSummaryButton} 
+            <TouchableOpacity
+              style={styles.multiWordSummaryButton}
+              onPress={() => setShowSummary(true)}
+            >
+              <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
+              <Text style={styles.summaryButtonText}>Summary</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        ) : currentWord && gameStyle === 'wordle' ? (
+          /* Wordle mode */
+          <ScrollView
+            contentContainerStyle={styles.gameContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* (wordLength + 1)-row Wordle grid */}
+            <View style={styles.wordleGrid}>
+              {Array.from({ length: wordLength + 1 }).map((_, rowIndex) => {
+                const submittedGuess = wordleGuesses[rowIndex];
+                const isCurrentRow = rowIndex === wordleGuesses.length && !wordleGameOver;
+                const tileStates = submittedGuess
+                  ? getTileStates(submittedGuess, currentWord.original)
+                  : null;
+
+                return (
+                  <View key={rowIndex} style={styles.wordleRow}>
+                    {Array.from({ length: currentWord.length }).map((_, colIndex) => {
+                      let letter = '';
+                      let tileStyle = styles.workleTileEmpty;
+                      let letterStyle = styles.workleTileLetter;
+
+                      if (submittedGuess) {
+                        letter = submittedGuess[colIndex] || '';
+                        const state = tileStates![colIndex];
+                        tileStyle =
+                          state === 'correct'
+                            ? styles.workleTileCorrect
+                            : state === 'present'
+                            ? styles.workleTilePresent
+                            : styles.workleTileAbsent;
+                        letterStyle = styles.workleTileLetterLight;
+                      } else if (isCurrentRow) {
+                        letter = wordleCurrentGuess[colIndex] || '';
+                        tileStyle = letter ? styles.workleTileFilled : styles.workleTileEmpty;
+                      }
+
+                      return (
+                        <View
+                          key={colIndex}
+                          style={[styles.workleTile, tileStyle, { width: tileSize, height: tileSize }]}
+                        >
+                          <Text style={[letterStyle, { fontSize: Math.floor(tileSize * 0.42) }]}>
+                            {letter.toUpperCase()}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Current guess input */}
+            {!wordleGameOver && (
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  value={wordleCurrentGuess}
+                  onChangeText={handleWordleChange}
+                  placeholder={`Type a ${currentWord.length}-letter word...`}
+                  placeholderTextColor={COLORS.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={currentWord.length}
+                  editable={!timeLimitExpired}
+                />
+                <Text style={styles.letterCountIndicator}>
+                  {wordleCurrentGuess.length} / {currentWord.length} letters
+                  {' '}• Attempt {wordleGuesses.length + 1} of {wordLength + 1}
+                </Text>
+              </View>
+            )}
+
+            {/* Win / Lose banner */}
+            {wordleGameOver && (
+              <View style={wordleWon ? styles.wordleWinBanner : styles.wordleLoseBanner}>
+                <Text style={styles.wordleOutcomeTitle}>
+                  {wordleWon ? 'Brilliant!' : 'Better luck next time!'}
+                </Text>
+                {!wordleWon && (
+                  <Text style={styles.wordleCorrectAnswer}>
+                    The word was{' '}
+                    <Text style={styles.wordleCorrectWord}>
+                      {currentWord.original.toUpperCase()}
+                    </Text>
+                  </Text>
+                )}
+                <TouchableOpacity style={styles.wordlePlayAgainButton} onPress={fetchWords}>
+                  <Ionicons name="refresh" size={18} color={COLORS.card} />
+                  <Text style={styles.wordlePlayAgainText}>Play Again</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Summary button */}
+            <TouchableOpacity
+              style={[styles.summaryButton, styles.summaryButtonFull, { marginTop: 8 }]}
               onPress={() => setShowSummary(true)}
             >
               <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
@@ -667,7 +425,7 @@ export default function WordUnjumbleGame() {
             </TouchableOpacity>
           </ScrollView>
         ) : currentWord ? (
-          /* Single word mode - original behavior */
+          /* Single word mode */
           <ScrollView
             contentContainerStyle={styles.gameContent}
             keyboardShouldPersistTaps="handled"
@@ -684,8 +442,8 @@ export default function WordUnjumbleGame() {
             <View style={styles.wordCard}>
               <Text style={styles.wordCardLabel}>Unjumble this word:</Text>
               {renderJumbledWord(currentWord.jumbled)}
-              
-              {/* Hint Section for single word */}
+
+              {/* Hint Section */}
               {!showResult && (
                 <View style={styles.singleWordHintSection}>
                   {(hints[currentWord.id] || []).length > 0 && (
@@ -702,10 +460,10 @@ export default function WordUnjumbleGame() {
                       onPress={() => getHint(currentWord.id, currentWord.original)}
                       disabled={!canGetHint(currentWord.id, currentWord.length)}
                     >
-                      <Ionicons 
-                        name="bulb-outline" 
-                        size={18} 
-                        color={canGetHint(currentWord.id, currentWord.length) ? COLORS.hintDark : COLORS.textMuted} 
+                      <Ionicons
+                        name="bulb-outline"
+                        size={18}
+                        color={canGetHint(currentWord.id, currentWord.length) ? COLORS.hintDark : COLORS.textMuted}
                       />
                       <Text style={[
                         styles.singleWordHintButtonText,
@@ -726,7 +484,7 @@ export default function WordUnjumbleGame() {
               )}
             </View>
 
-            {/* Answer Input - Auto-checks when letter count matches */}
+            {/* Answer Input */}
             <View style={styles.inputContainer}>
               <TextInput
                 style={[
@@ -735,69 +493,35 @@ export default function WordUnjumbleGame() {
                   showResult && !isCorrect && styles.inputIncorrect,
                 ]}
                 value={currentAnswer}
-                onChangeText={(text) => {
-                  // Only allow letters
-                  const cleanText = text.replace(/[^a-zA-Z]/g, '');
-                  
-                  // If user is deleting (text is shorter), reset the incorrect state
-                  if (showResult && !isCorrect && cleanText.length < currentAnswer.length) {
-                    setShowResult(false);
-                    setCurrentAnswer(cleanText);
-                    return;
-                  }
-                  
-                  setCurrentAnswer(cleanText);
-                  
-                  // Reset result when user modifies the answer (only if was correct - incorrect can retry)
-                  if (showResult && isCorrect) {
-                    setShowResult(false);
-                  }
-                  
-                  // Auto-check when letter count matches expected word length
-                  if (cleanText.length === currentWord.length && !showResult) {
-                    // Delay slightly to allow state to update
-                    setTimeout(() => {
-                      const correct = cleanText.toLowerCase().trim() === currentWord.original.toLowerCase();
-                      setIsCorrect(correct);
-                      setShowResult(true);
-                      if (correct) {
-                        setGameState(prev => ({
-                          ...prev,
-                          answers: { ...prev.answers, [currentWord.id]: cleanText },
-                          results: { ...prev.results, [currentWord.id]: correct },
-                          score: prev.score + 1,
-                        }));
-                      }
-                    }, 100);
-                  }
-                }}
+                onChangeText={handleSingleWordChange}
                 placeholder="Type your answer..."
                 placeholderTextColor={COLORS.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={currentWord.length}
-                editable={!isCorrect || !showResult}
+                editable={(!isCorrect || !showResult) && !timeLimitExpired}
               />
-              
+
               {/* Letter count indicator */}
               {!showResult && (
                 <Text style={styles.letterCountIndicator}>
                   {currentAnswer.length} / {currentWord.length} letters
                 </Text>
               )}
-              
-              {/* Button row - Only show One More if correct, Summary always visible */}
+
+              {/* Button row */}
               <View style={styles.singleWordButtonRow}>
                 {showResult && isCorrect && (
-                  <TouchableOpacity style={[styles.oneMoreButton, styles.oneMoreButtonFlex]} onPress={fetchOneMoreWord}>
+                  <TouchableOpacity
+                    style={[styles.oneMoreButton, styles.oneMoreButtonFlex]}
+                    onPress={fetchOneMoreWord}
+                  >
                     <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
                     <Text style={styles.oneMoreButtonText}>One More</Text>
                   </TouchableOpacity>
                 )}
-                
-                {/* Summary Button - Always visible */}
-                <TouchableOpacity 
-                  style={[styles.summaryButton, (!showResult || !isCorrect) && styles.summaryButtonFull]} 
+                <TouchableOpacity
+                  style={[styles.summaryButton, (!showResult || !isCorrect) && styles.summaryButtonFull]}
                   onPress={() => setShowSummary(true)}
                 >
                   <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
@@ -808,7 +532,7 @@ export default function WordUnjumbleGame() {
           </ScrollView>
         ) : null}
 
-        {/* Summary Modal for Single-Word Mode */}
+        {/* Summary Modal */}
         <Modal
           visible={showSummary}
           animationType="slide"
@@ -823,7 +547,12 @@ export default function WordUnjumbleGame() {
                   <Ionicons name="close" size={24} color={COLORS.text} />
                 </TouchableOpacity>
               </View>
-              
+              {timeLimitExpired && (
+                <View style={styles.timesUpBanner}>
+                  <Ionicons name="alarm-outline" size={20} color={COLORS.errorDark} />
+                  <Text style={styles.timesUpText}>Time's Up!</Text>
+                </View>
+              )}
               <View style={styles.summaryStats}>
                 <View style={styles.summaryStatItem}>
                   <Text style={styles.summaryStatNumber}>{Object.keys(gameState.results).length}</Text>
@@ -842,25 +571,22 @@ export default function WordUnjumbleGame() {
                   <Text style={styles.summaryStatLabel}>Incorrect</Text>
                 </View>
               </View>
-              
               <View style={styles.summaryTimeContainer}>
                 <Ionicons name="time-outline" size={20} color={COLORS.textLight} />
                 <Text style={styles.summaryTime}>Time: {formatTime(elapsedTime)}</Text>
               </View>
-              
               <View style={styles.summaryActions}>
-                <TouchableOpacity 
-                  style={styles.summaryCloseButton} 
-                  onPress={() => setShowSummary(false)}
-                >
-                  <Text style={styles.summaryCloseButtonText}>Continue Playing</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.summaryRestartButton} 
-                  onPress={() => {
-                    setShowSummary(false);
-                    fetchWords();
-                  }}
+                {!gameCompleted && !wordleGameOver && !timeLimitExpired && (
+                  <TouchableOpacity
+                    style={styles.summaryCloseButton}
+                    onPress={() => setShowSummary(false)}
+                  >
+                    <Text style={styles.summaryCloseButtonText}>Continue Playing</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.summaryRestartButton}
+                  onPress={() => { setShowSummary(false); fetchWords(); }}
                 >
                   <Ionicons name="refresh" size={18} color={COLORS.card} />
                   <Text style={styles.summaryRestartButtonText}>Start Over</Text>
@@ -886,6 +612,30 @@ export default function WordUnjumbleGame() {
                 </TouchableOpacity>
               </View>
 
+              {/* Game Style Selection */}
+              <View style={styles.settingSection}>
+                <Text style={styles.settingLabel}>Game Style</Text>
+                <View style={styles.optionRow}>
+                  {(['classic', 'wordle'] as const).map((style) => (
+                    <TouchableOpacity
+                      key={style}
+                      style={[
+                        styles.optionButton,
+                        tempGameStyle === style && styles.optionButtonActive,
+                      ]}
+                      onPress={() => setTempGameStyle(style)}
+                    >
+                      <Text style={[
+                        styles.optionText,
+                        tempGameStyle === style && styles.optionTextActive,
+                      ]}>
+                        {style === 'classic' ? 'Classic' : 'Wordle'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
               {/* Word Length Selection */}
               <View style={styles.settingSection}>
                 <Text style={styles.settingLabel}>Word Complexity (Letters)</Text>
@@ -899,12 +649,10 @@ export default function WordUnjumbleGame() {
                       ]}
                       onPress={() => setTempWordLength(length)}
                     >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          tempWordLength === length && styles.optionTextActive,
-                        ]}
-                      >
+                      <Text style={[
+                        styles.optionText,
+                        tempWordLength === length && styles.optionTextActive,
+                      ]}>
                         {length}
                       </Text>
                     </TouchableOpacity>
@@ -913,9 +661,14 @@ export default function WordUnjumbleGame() {
               </View>
 
               {/* Word Count Selection */}
-              <View style={styles.settingSection}>
-                <Text style={styles.settingLabel}>Number of Words</Text>
-                <View style={styles.optionRow}>
+              <View style={[
+                styles.settingSection,
+                tempGameStyle === 'wordle' && styles.settingSectionDisabled,
+              ]}>
+                <Text style={styles.settingLabel}>
+                  {tempGameStyle === 'wordle' ? 'Number of Words (1 in Wordle mode)' : 'Number of Words'}
+                </Text>
+                <View style={styles.optionRow} pointerEvents={tempGameStyle === 'wordle' ? 'none' : 'auto'}>
                   {[1, 3, 5, 10].map((count) => (
                     <TouchableOpacity
                       key={count}
@@ -925,13 +678,35 @@ export default function WordUnjumbleGame() {
                       ]}
                       onPress={() => setTempWordCount(count)}
                     >
-                      <Text
-                        style={[
-                          styles.optionText,
-                          tempWordCount === count && styles.optionTextActive,
-                        ]}
-                      >
+                      <Text style={[
+                        styles.optionText,
+                        tempWordCount === count && styles.optionTextActive,
+                      ]}>
                         {count}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Time Limit Selection */}
+              <View style={styles.settingSection}>
+                <Text style={styles.settingLabel}>Time Limit (Optional)</Text>
+                <View style={styles.optionRow}>
+                  {([null, 60, 120, 180, 300] as (number | null)[]).map((limit) => (
+                    <TouchableOpacity
+                      key={limit === null ? 'none' : limit}
+                      style={[
+                        styles.optionButton,
+                        tempTimeLimit === limit && styles.optionButtonActive,
+                      ]}
+                      onPress={() => setTempTimeLimit(limit)}
+                    >
+                      <Text style={[
+                        styles.optionText,
+                        tempTimeLimit === limit && styles.optionTextActive,
+                      ]}>
+                        {limit === null ? 'None' : `${limit / 60}m`}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -948,726 +723,3 @@ export default function WordUnjumbleGame() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.card,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: COLORS.textLight,
-    marginTop: 2,
-  },
-  settingsIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  newGameButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
-  },
-  newGameButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: COLORS.textLight,
-  },
-  gameContent: {
-    flexGrow: 1,
-    padding: 20,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  progressText: {
-    fontSize: 16,
-    color: COLORS.textLight,
-  },
-  scoreText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  wordCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: 24,
-  },
-  wordCardLabel: {
-    fontSize: 16,
-    color: COLORS.textLight,
-    marginBottom: 20,
-  },
-  letterContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  letterCard: {
-    width: 48,
-    height: 56,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  letterText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.card,
-  },
-  inputContainer: {
-    gap: 16,
-  },
-  input: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    fontSize: 18,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    textAlign: 'center',
-  },
-  checkButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  checkButtonDisabled: {
-    backgroundColor: COLORS.textMuted,
-  },
-  checkButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  resultContainer: {
-    gap: 16,
-  },
-  resultBox: {
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-  },
-  resultCorrect: {
-    backgroundColor: '#E6FFED',
-  },
-  resultIncorrect: {
-    backgroundColor: '#FFF5F5',
-  },
-  resultText: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  resultTextCorrect: {
-    color: COLORS.successDark,
-  },
-  resultTextIncorrect: {
-    color: COLORS.errorDark,
-  },
-  correctAnswerText: {
-    fontSize: 16,
-    color: COLORS.textLight,
-    marginTop: 8,
-  },
-  correctWord: {
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  nextButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  nextButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  completedContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  completedTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginTop: 16,
-  },
-  completedScore: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: COLORS.primary,
-    marginTop: 8,
-  },
-  completedPercentage: {
-    fontSize: 18,
-    color: COLORS.textLight,
-    marginTop: 4,
-  },
-  completedButtons: {
-    marginTop: 32,
-    gap: 12,
-    width: '100%',
-  },
-  completedButton: {
-    borderRadius: 12,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  playAgainButton: {
-    backgroundColor: COLORS.primary,
-  },
-  playAgainText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  settingsButton: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  settingsButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: COLORS.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  settingSection: {
-    marginBottom: 24,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 12,
-  },
-  optionRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  optionButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  optionButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  optionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.textLight,
-  },
-  optionTextActive: {
-    color: COLORS.card,
-  },
-  applyButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  applyButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  // Multi-word mode styles
-  multiWordCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  multiWordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  multiWordNumber: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textMuted,
-  },
-  multiWordLetters: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 6,
-    marginBottom: 12,
-  },
-  smallLetterCard: {
-    width: 40,
-    height: 46,
-    backgroundColor: COLORS.primary,
-    borderRadius: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  smallLetterText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.card,
-  },
-  multiWordInput: {
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: COLORS.text,
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  multiWordResult: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  multiWordAnswer: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  answerCorrect: {
-    color: COLORS.successDark,
-  },
-  answerIncorrect: {
-    color: COLORS.errorDark,
-  },
-  multiWordCorrect: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  checkAllButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  checkAllButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  // Timer styles
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
-  },
-  timerText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  completedTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 6,
-  },
-  completedTime: {
-    fontSize: 16,
-    color: COLORS.textLight,
-  },
-  // Hint styles for multi-word mode
-  hintSection: {
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
-  },
-  hintDisplay: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.hintDark,
-    letterSpacing: 2,
-  },
-  hintButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.hint,
-    gap: 4,
-  },
-  hintButtonDisabled: {
-    backgroundColor: COLORS.background,
-    borderColor: COLORS.border,
-  },
-  hintButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: COLORS.hintDark,
-  },
-  hintButtonTextDisabled: {
-    color: COLORS.textMuted,
-  },
-  // Hint styles for single word mode
-  singleWordHintSection: {
-    marginTop: 20,
-    alignItems: 'center',
-    gap: 10,
-  },
-  singleWordHintDisplay: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: COLORS.hintDark,
-    letterSpacing: 4,
-  },
-  singleWordHintButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.hint,
-    gap: 6,
-  },
-  singleWordHintButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.hintDark,
-  },
-  // Action buttons row styles
-  actionButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  reshuffleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 4,
-  },
-  reshuffleButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: COLORS.primary,
-  },
-  // Single word mode action buttons
-  singleWordActionButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  singleWordReshuffleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 6,
-  },
-  singleWordReshuffleButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.primary,
-  },
-  // One More button styles
-  oneMoreButton: {
-    backgroundColor: COLORS.successDark,
-    borderRadius: 12,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  oneMoreButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  oneMoreButtonFlex: {
-    flex: 1,
-  },
-  // Input box color states
-  inputCorrect: {
-    backgroundColor: '#E6FFED',
-    borderColor: COLORS.successDark,
-  },
-  inputIncorrect: {
-    backgroundColor: '#FFF5F5',
-    borderColor: COLORS.errorDark,
-  },
-  correctAnswerInline: {
-    fontSize: 14,
-    color: COLORS.textLight,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  // Single word button row
-  singleWordButtonRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  checkButtonFlex: {
-    flex: 1,
-  },
-  // Summary button
-  summaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 6,
-  },
-  summaryButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.primary,
-  },
-  // Summary modal styles
-  summaryModalContent: {
-    backgroundColor: COLORS.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  summaryStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginVertical: 24,
-  },
-  summaryStatItem: {
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    minWidth: 80,
-  },
-  summaryStatCorrect: {
-    backgroundColor: '#E6FFED',
-  },
-  summaryStatIncorrect: {
-    backgroundColor: '#FEF3E7',
-  },
-  summaryStatNumber: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  summaryStatLabel: {
-    fontSize: 14,
-    color: COLORS.textLight,
-    marginTop: 4,
-  },
-  summaryTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
-  },
-  summaryTime: {
-    fontSize: 16,
-    color: COLORS.textLight,
-  },
-  summaryActions: {
-    gap: 12,
-  },
-  summaryCloseButton: {
-    backgroundColor: COLORS.background,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  summaryCloseButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  summaryRestartButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  summaryRestartButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.card,
-  },
-  // Letter count indicator
-  letterCountIndicator: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  // Full width summary button when Check is hidden
-  summaryButtonFull: {
-    flex: 1,
-  },
-  // Multi-word mode new styles
-  multiWordLetterCount: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  multiWordCorrectAnswer: {
-    fontSize: 12,
-    color: COLORS.textLight,
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  multiWordSummaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 6,
-    marginTop: 12,
-    marginBottom: 20,
-  },
-});

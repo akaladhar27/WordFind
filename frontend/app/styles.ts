@@ -1,0 +1,840 @@
+import { StyleSheet, Platform, StatusBar } from 'react-native';
+import { COLORS } from './types';
+
+export const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginTop: 2,
+  },
+  settingsIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  newGameButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+  },
+  newGameButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: COLORS.textLight,
+  },
+  gameContent: {
+    flexGrow: 1,
+    padding: 20,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  progressText: {
+    fontSize: 16,
+    color: COLORS.textLight,
+  },
+  scoreText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  wordCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 24,
+  },
+  wordCardLabel: {
+    fontSize: 16,
+    color: COLORS.textLight,
+    marginBottom: 20,
+  },
+  letterContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  letterCard: {
+    width: 48,
+    height: 56,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  letterText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.card,
+  },
+  inputContainer: {
+    gap: 16,
+  },
+  input: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    fontSize: 18,
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    textAlign: 'center',
+  },
+  checkButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  checkButtonDisabled: {
+    backgroundColor: COLORS.textMuted,
+  },
+  checkButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  resultContainer: {
+    gap: 16,
+  },
+  resultBox: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  resultCorrect: {
+    backgroundColor: '#E6FFED',
+  },
+  resultIncorrect: {
+    backgroundColor: '#FFF5F5',
+  },
+  resultText: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  resultTextCorrect: {
+    color: COLORS.successDark,
+  },
+  resultTextIncorrect: {
+    color: COLORS.errorDark,
+  },
+  correctAnswerText: {
+    fontSize: 16,
+    color: COLORS.textLight,
+    marginTop: 8,
+  },
+  correctWord: {
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  nextButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nextButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  completedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  completedTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginTop: 16,
+  },
+  completedScore: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: COLORS.primary,
+    marginTop: 8,
+  },
+  completedPercentage: {
+    fontSize: 18,
+    color: COLORS.textLight,
+    marginTop: 4,
+  },
+  completedButtons: {
+    marginTop: 32,
+    gap: 12,
+    width: '100%',
+  },
+  completedButton: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  playAgainButton: {
+    backgroundColor: COLORS.primary,
+  },
+  playAgainText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  settingsButton: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  settingsButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  settingSection: {
+    marginBottom: 24,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  optionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  optionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  optionButtonActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  optionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textLight,
+  },
+  optionTextActive: {
+    color: COLORS.card,
+  },
+  applyButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  applyButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  // Multi-word mode styles
+  multiWordCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  multiWordHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  multiWordNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  multiWordLetters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  smallLetterCard: {
+    width: 40,
+    height: 46,
+    backgroundColor: COLORS.primary,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  smallLetterText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.card,
+  },
+  multiWordInput: {
+    backgroundColor: COLORS.background,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: COLORS.text,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  multiWordResult: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  multiWordAnswer: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  answerCorrect: {
+    color: COLORS.successDark,
+  },
+  answerIncorrect: {
+    color: COLORS.errorDark,
+  },
+  multiWordCorrect: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  checkAllButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  checkAllButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  // Timer styles
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  timerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  timerContainerWarning: {
+    backgroundColor: '#FFF5F5',
+  },
+  timerTextWarning: {
+    color: COLORS.errorDark,
+  },
+  completedTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 6,
+  },
+  completedTime: {
+    fontSize: 16,
+    color: COLORS.textLight,
+  },
+  // Hint styles for multi-word mode
+  hintSection: {
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  hintDisplay: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.hintDark,
+    letterSpacing: 2,
+  },
+  hintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.hint,
+    gap: 4,
+  },
+  hintButtonDisabled: {
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.border,
+  },
+  hintButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.hintDark,
+  },
+  hintButtonTextDisabled: {
+    color: COLORS.textMuted,
+  },
+  // Hint styles for single word mode
+  singleWordHintSection: {
+    marginTop: 20,
+    alignItems: 'center',
+    gap: 10,
+  },
+  singleWordHintDisplay: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: COLORS.hintDark,
+    letterSpacing: 4,
+  },
+  singleWordHintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.hint,
+    gap: 6,
+  },
+  singleWordHintButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.hintDark,
+  },
+  // Action buttons row styles
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  reshuffleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 4,
+  },
+  reshuffleButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.primary,
+  },
+  // Single word mode action buttons
+  singleWordActionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  singleWordReshuffleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 6,
+  },
+  singleWordReshuffleButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.primary,
+  },
+  // One More button styles
+  oneMoreButton: {
+    backgroundColor: COLORS.successDark,
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  oneMoreButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  oneMoreButtonFlex: {
+    flex: 1,
+  },
+  // Input box color states
+  inputCorrect: {
+    backgroundColor: '#E6FFED',
+    borderColor: COLORS.successDark,
+  },
+  inputIncorrect: {
+    backgroundColor: '#FFF5F5',
+    borderColor: COLORS.errorDark,
+  },
+  correctAnswerInline: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  // Single word button row
+  singleWordButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  checkButtonFlex: {
+    flex: 1,
+  },
+  // Summary button
+  summaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 6,
+  },
+  summaryButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.primary,
+  },
+  // Summary modal styles
+  summaryModalContent: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  summaryStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 24,
+  },
+  summaryStatItem: {
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    minWidth: 80,
+  },
+  summaryStatCorrect: {
+    backgroundColor: '#E6FFED',
+  },
+  summaryStatIncorrect: {
+    backgroundColor: '#FEF3E7',
+  },
+  summaryStatNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  summaryStatLabel: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginTop: 4,
+  },
+  summaryTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 24,
+  },
+  summaryTime: {
+    fontSize: 16,
+    color: COLORS.textLight,
+  },
+  summaryActions: {
+    gap: 12,
+  },
+  summaryCloseButton: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  summaryCloseButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  summaryRestartButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryRestartButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  // Letter count indicator
+  letterCountIndicator: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  // Full width summary button when Check is hidden
+  summaryButtonFull: {
+    flex: 1,
+  },
+  // Multi-word mode new styles
+  multiWordLetterCount: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  multiWordCorrectAnswer: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  multiWordSummaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 6,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  // Wordle grid styles
+  wordleGrid: {
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 20,
+  },
+  wordleRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  workleTile: {
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+  },
+  workleTileEmpty: {
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+  workleTileFilled: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.card,
+  },
+  workleTileCorrect: {
+    borderColor: '#48BB78',
+    backgroundColor: '#48BB78',
+  },
+  workleTilePresent: {
+    borderColor: '#D69E2E',
+    backgroundColor: '#ECC94B',
+  },
+  workleTileAbsent: {
+    borderColor: '#718096',
+    backgroundColor: '#718096',
+  },
+  workleTileLetter: {
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  workleTileLetterLight: {
+    fontWeight: '700',
+    color: COLORS.card,
+  },
+  // Wordle outcome banners
+  wordleWinBanner: {
+    backgroundColor: '#E6FFED',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  wordleLoseBanner: {
+    backgroundColor: '#FFF5F5',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  wordleOutcomeTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  wordleCorrectAnswer: {
+    fontSize: 16,
+    color: COLORS.textLight,
+  },
+  wordleCorrectWord: {
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  wordlePlayAgainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 6,
+    marginTop: 4,
+  },
+  wordlePlayAgainText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.card,
+  },
+  // Disabled settings section
+  settingSectionDisabled: {
+    opacity: 0.4,
+  },
+  timesUpBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF5F5',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 6,
+  },
+  timesUpText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.errorDark,
+  },
+});
