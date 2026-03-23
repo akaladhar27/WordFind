@@ -1,42 +1,5 @@
 import { JumbledWord } from './types';
-
-const WORD_LISTS: Record<number, string[]> = {
-  4: [
-    'book', 'tree', 'game', 'play', 'word', 'time', 'life', 'home', 'work', 'love',
-    'fish', 'bird', 'moon', 'star', 'rain', 'snow', 'leaf', 'rock', 'sand', 'wave',
-    'cake', 'milk', 'rice', 'soup', 'meat', 'corn', 'bean', 'salt', 'chip', 'nuts',
-    'bear', 'deer', 'frog', 'goat', 'lamb', 'lion', 'moth', 'seal', 'swan', 'wolf',
-    'blue', 'gold', 'gray', 'pink', 'teal', 'jade', 'rose', 'ruby', 'onyx', 'opal',
-  ],
-  5: [
-    'apple', 'grape', 'lemon', 'mango', 'peach', 'beach', 'ocean', 'river', 'storm', 'cloud',
-    'house', 'table', 'chair', 'couch', 'light', 'music', 'dance', 'smile', 'laugh', 'dream',
-    'bread', 'toast', 'pasta', 'pizza', 'salad', 'green', 'brown', 'white', 'black', 'cream',
-    'tiger', 'zebra', 'horse', 'mouse', 'sheep', 'whale', 'shark', 'eagle', 'robin', 'crane',
-    'water', 'earth', 'flame', 'stone', 'glass', 'metal', 'paper', 'cloth', 'wood', 'brick',
-  ],
-  6: [
-    'banana', 'orange', 'cherry', 'papaya', 'tomato', 'garden', 'flower', 'forest', 'meadow', 'canyon',
-    'window', 'mirror', 'pillow', 'carpet', 'closet', 'planet', 'rocket', 'galaxy', 'cosmos', 'comet',
-    'butter', 'cheese', 'yogurt', 'cereal', 'waffle', 'purple', 'yellow', 'silver', 'golden', 'copper',
-    'rabbit', 'turtle', 'monkey', 'parrot', 'pigeon', 'salmon', 'shrimp', 'oyster', 'clover', 'cactus',
-    'bridge', 'castle', 'church', 'market', 'school', 'museum', 'temple', 'palace', 'tunnel', 'island',
-  ],
-  7: [
-    'avocado', 'apricot', 'coconut', 'pumpkin', 'spinach', 'rainbow', 'thunder', 'volcano', 'glacier', 'tornado',
-    'kitchen', 'bedroom', 'balcony', 'hallway', 'library', 'jupiter', 'neptune', 'mercury', 'uranium', 'element',
-    'chicken', 'seafood', 'popcorn', 'pretzel', 'biscuit', 'diamond', 'emerald', 'crystal', 'granite', 'ceramic',
-    'dolphin', 'penguin', 'gorilla', 'buffalo', 'leopard', 'panther', 'peacock', 'seagull', 'sparrow', 'cricket',
-    'airport', 'station', 'factory', 'stadium', 'theater', 'gallery', 'academy', 'college', 'capitol', 'embassy',
-  ],
-  8: [
-    'blueberry', 'raspberry', 'pineapple', 'broccoli', 'zucchini', 'sunshine', 'moonlight', 'starlight', 'twilight', 'midnight',
-    'bathroom', 'basement', 'elevator', 'stairway', 'corridor', 'asteroid', 'satellite', 'universe', 'molecule', 'particle',
-    'sandwich', 'smoothie', 'pancakes', 'doughnut', 'meatball', 'amethyst', 'sapphire', 'platinum', 'titanium', 'aluminum',
-    'elephant', 'kangaroo', 'flamingo', 'antelope', 'squirrel', 'caterpillar', 'crocodile', 'butterfly', 'dragonfly', 'honeybee',
-    'hospital', 'monument', 'cathedral', 'fountain', 'skyscraper', 'aquarium', 'pavilion', 'coliseum', 'sanctuary', 'monastery',
-  ],
-};
+import { WORD_LISTS } from './wordLists';
 
 function randomId(): string {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
