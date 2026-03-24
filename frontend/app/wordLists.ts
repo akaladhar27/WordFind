@@ -1,4 +1,4 @@
-/costexport const WORD_LISTS: Record<number, string[]> = {
+export const WORD_LISTS: Record<number, string[]> = {
   4: [
     // original 50
     'book', 'tree', 'game', 'play', 'word', 'time', 'life', 'home', 'work', 'love',

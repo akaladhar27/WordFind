@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,13 @@ import {
   Platform,
   SafeAreaView,
   StatusBar,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from './types';
-import { styles } from './styles';
+import { createStyles } from './styles';
 import { useGameLogic } from './useGameLogic';
+import { CustomKeyboard } from './CustomKeyboard';
 
 export default function WordUnjumbleGame() {
   const {
@@ -58,15 +59,53 @@ export default function WordUnjumbleGame() {
     gameStyle,
     tempGameStyle,
     setTempGameStyle,
+    keyboardStyle,
+    tempKeyboardStyle,
+    setTempKeyboardStyle,
     wordleGuesses,
     wordleCurrentGuess,
     wordleAttempt,
     wordleGameOver,
     wordleWon,
+    dictionaryErrors,
+    wordleCurrentRowInvalid,
   } = useGameLogic();
 
-  const screenWidth = Dimensions.get('window').width;
-  const tileSize = Math.min(56, Math.floor((screenWidth - 40 - (wordLength - 1) * 6) / wordLength));
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+
+  // Memoise the full style sheet — rebuilds only when screen dimensions change
+  const styles = useMemo(() => createStyles(screenWidth, screenHeight), [screenWidth, screenHeight]);
+
+  // ── Responsive layout values ──────────────────────────────────────────────
+  const contentPadding = Math.round(screenWidth * 0.043); // ~16px on 375
+  const wordCardPadding = Math.round(screenWidth * 0.053); // ~20px on 375
+  const tileGap = Math.round(screenWidth * 0.016);         // ~6px on 375
+
+  // Wordle tile size: fill available width evenly
+  const tileSize = Math.min(
+    Math.round(screenWidth * 0.14),  // cap at ~14% of screen width
+    Math.floor((screenWidth - contentPadding * 2 - (wordLength - 1) * tileGap) / wordLength)
+  );
+
+  // Single-word jumbled letter card: fill card width based on word length
+  const letterGap = Math.round(screenWidth * 0.02);
+  const availableCardWidth = screenWidth - contentPadding * 2 - wordCardPadding * 2;
+  const letterCardSize = Math.min(
+    Math.round(screenWidth * 0.155),  // max ~58px on 375
+    Math.floor((availableCardWidth - (wordLength - 1) * letterGap) / wordLength)
+  );
+  const letterCardHeight = Math.round(letterCardSize * 1.15);
+  const letterFontSize = Math.round(letterCardSize * 0.48);
+
+  // Multi-word small letter cards
+  const multiCardInnerWidth = screenWidth - contentPadding * 2 - Math.round(screenWidth * 0.037) * 2;
+  const smallGap = Math.round(screenWidth * 0.013);
+  const smallCardSize = Math.min(
+    Math.round(screenWidth * 0.115), // max ~43px on 375
+    Math.floor((multiCardInnerWidth - (wordLength - 1) * smallGap) / wordLength)
+  );
+  const smallCardHeight = Math.round(smallCardSize * 1.15);
+  const smallFontSize = Math.round(smallCardSize * 0.48);
 
   const getTileStates = (guess: string, answer: string): ('correct' | 'present' | 'absent')[] => {
     const result: ('correct' | 'present' | 'absent')[] = Array(guess.length).fill('absent');
@@ -92,12 +131,80 @@ export default function WordUnjumbleGame() {
     return result;
   };
 
-  // Render letter cards for jumbled word
+  // Hidden input ref for capturing wordle keyboard input (system keyboard only)
+  const wordleInputRef = useRef<TextInput>(null);
+
+  // Focused word for multi-word + custom keyboard
+  const [focusedWordId, setFocusedWordId] = useState<string | null>(null);
+
+  // Auto-focus the hidden wordle input only when using system keyboard
+  useEffect(() => {
+    if (gameStyle === 'wordle' && !wordleGameOver && keyboardStyle === 'system') {
+      const t = setTimeout(() => wordleInputRef.current?.focus(), 300);
+      return () => clearTimeout(t);
+    }
+  }, [gameStyle, wordleGameOver, keyboardStyle]);
+
+  // Wordle letter states — used by custom keyboard for colour hints
+  const wordleLetterStates = useMemo((): Record<string, 'correct' | 'present' | 'absent'> => {
+    if (gameStyle !== 'wordle') return {};
+    const currentWord = gameState.words[0];
+    if (!currentWord) return {};
+    const states: Record<string, 'correct' | 'present' | 'absent'> = {};
+    wordleGuesses.forEach(guess => {
+      const ts = getTileStates(guess, currentWord.original);
+      guess.split('').forEach((ch, i) => {
+        const s = ts[i];
+        const k = ch.toLowerCase();
+        if (s === 'correct') states[k] = 'correct';
+        else if (s === 'present' && states[k] !== 'correct') states[k] = 'present';
+        else if (s === 'absent' && !states[k]) states[k] = 'absent';
+      });
+    });
+    return states;
+  }, [gameStyle, wordleGuesses, gameState.words]);
+
+  const useCustomKeyboard = keyboardStyle === 'custom';
+
+  // Custom keyboard handlers
+  const handleCustomKey = (key: string) => {
+    if (gameStyle === 'wordle') {
+      handleWordleChange(wordleCurrentGuess + key);
+    } else if (gameState.words.length === 1) {
+      const cw = gameState.words[gameState.currentIndex];
+      if (cw) handleSingleWordChange(currentAnswer + key);
+    } else {
+      if (!focusedWordId) return;
+      const word = gameState.words.find(w => w.id === focusedWordId);
+      if (!word) return;
+      handleMultiWordChange(word, (gameState.answers[focusedWordId] || '') + key);
+    }
+  };
+
+  const handleCustomBackspace = () => {
+    if (gameStyle === 'wordle') {
+      handleWordleChange(wordleCurrentGuess.slice(0, -1));
+    } else if (gameState.words.length === 1) {
+      handleSingleWordChange(currentAnswer.slice(0, -1));
+    } else {
+      if (!focusedWordId) return;
+      const word = gameState.words.find(w => w.id === focusedWordId);
+      if (!word) return;
+      handleMultiWordChange(word, (gameState.answers[focusedWordId] || '').slice(0, -1));
+    }
+  };
+
+  // Render letter cards for jumbled word — sizes computed from screen width
   const renderJumbledWord = (word: string) => (
-    <View style={styles.letterContainer}>
+    <View style={[styles.letterContainer, { gap: letterGap }]}>
       {word.split('').map((letter, index) => (
-        <View key={index} style={styles.letterCard}>
-          <Text style={styles.letterText}>{letter.toUpperCase()}</Text>
+        <View
+          key={index}
+          style={[styles.letterCard, { width: letterCardSize, height: letterCardHeight }]}
+        >
+          <Text style={[styles.letterText, { fontSize: letterFontSize }]}>
+            {letter.toUpperCase()}
+          </Text>
         </View>
       ))}
     </View>
@@ -176,6 +283,12 @@ export default function WordUnjumbleGame() {
                 </Text>
               </View>
             )}
+            {gameStarted && !loading && (
+              <TouchableOpacity style={styles.headerSummaryButton} onPress={() => setShowSummary(true)}>
+                <Ionicons name="stats-chart-outline" size={15} color={COLORS.textLight} />
+                <Text style={styles.headerSummaryButtonText}>Stats</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.newGameButton} onPress={openSettings}>
               <Ionicons name="add-outline" size={18} color={COLORS.card} />
               <Text style={styles.newGameButtonText}>New</Text>
@@ -184,6 +297,7 @@ export default function WordUnjumbleGame() {
         </View>
 
         {/* Main Content */}
+        <View style={{ flex: 1 }}>
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
@@ -213,8 +327,22 @@ export default function WordUnjumbleGame() {
               const isWordChecked = wordResult !== undefined;
               const isWordCorrect = wordResult === true;
 
+              const isFocused = focusedWordId === word.id;
+
               return (
-                <View key={word.id} style={styles.multiWordCard}>
+                <TouchableOpacity
+                  key={word.id}
+                  activeOpacity={useCustomKeyboard && !isWordCorrect && !timeLimitExpired ? 0.7 : 1}
+                  onPress={() => {
+                    if (useCustomKeyboard && !isWordCorrect && !timeLimitExpired) {
+                      setFocusedWordId(word.id);
+                    }
+                  }}
+                >
+                <View style={[
+                  styles.multiWordCard,
+                  useCustomKeyboard && isFocused && !isWordCorrect && styles.multiWordCardFocused,
+                ]}>
                   <View style={styles.multiWordHeader}>
                     <Text style={styles.multiWordNumber}>#{index + 1}</Text>
                     {isWordChecked && (
@@ -227,10 +355,15 @@ export default function WordUnjumbleGame() {
                   </View>
 
                   {/* Jumbled Letters */}
-                  <View style={styles.multiWordLetters}>
+                  <View style={[styles.multiWordLetters, { gap: smallGap }]}>
                     {word.jumbled.split('').map((letter, letterIndex) => (
-                      <View key={letterIndex} style={styles.smallLetterCard}>
-                        <Text style={styles.smallLetterText}>{letter.toUpperCase()}</Text>
+                      <View
+                        key={letterIndex}
+                        style={[styles.smallLetterCard, { width: smallCardSize, height: smallCardHeight }]}
+                      >
+                        <Text style={[styles.smallLetterText, { fontSize: smallFontSize }]}>
+                          {letter.toUpperCase()}
+                        </Text>
                       </View>
                     ))}
                   </View>
@@ -279,17 +412,20 @@ export default function WordUnjumbleGame() {
                   <TextInput
                     style={[
                       styles.multiWordInput,
+                      !isWordChecked && dictionaryErrors[word.id] && styles.inputInvalidWord,
                       isWordChecked && isWordCorrect && styles.inputCorrect,
                       isWordChecked && !isWordCorrect && styles.inputIncorrect,
+                      useCustomKeyboard && isFocused && !isWordCorrect && styles.multiWordInputFocused,
                     ]}
                     value={gameState.answers[word.id] || ''}
                     onChangeText={(text) => handleMultiWordChange(word, text)}
-                    placeholder="Type your answer..."
+                    placeholder={useCustomKeyboard ? (isFocused ? '' : 'Tap to select') : 'Type your answer...'}
                     placeholderTextColor={COLORS.textMuted}
                     autoCapitalize="none"
                     autoCorrect={false}
                     maxLength={word.length}
-                    editable={!isWordCorrect && !timeLimitExpired}
+                    editable={!useCustomKeyboard && !isWordCorrect && !timeLimitExpired}
+                    showSoftInputOnFocus={!useCustomKeyboard}
                   />
 
                   {/* Letter count */}
@@ -299,6 +435,7 @@ export default function WordUnjumbleGame() {
                     </Text>
                   )}
                 </View>
+                </TouchableOpacity>
               );
             })}
 
@@ -311,14 +448,6 @@ export default function WordUnjumbleGame() {
               </TouchableOpacity>
             )}
 
-            {/* Summary Button */}
-            <TouchableOpacity
-              style={styles.multiWordSummaryButton}
-              onPress={() => setShowSummary(true)}
-            >
-              <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
-              <Text style={styles.summaryButtonText}>Summary</Text>
-            </TouchableOpacity>
           </ScrollView>
         ) : currentWord && gameStyle === 'wordle' ? (
           /* Wordle mode */
@@ -326,73 +455,83 @@ export default function WordUnjumbleGame() {
             contentContainerStyle={styles.gameContent}
             keyboardShouldPersistTaps="handled"
           >
-            {/* (wordLength + 1)-row Wordle grid */}
-            <View style={styles.wordleGrid}>
-              {Array.from({ length: wordLength + 1 }).map((_, rowIndex) => {
-                const submittedGuess = wordleGuesses[rowIndex];
-                const isCurrentRow = rowIndex === wordleGuesses.length && !wordleGameOver;
-                const tileStates = submittedGuess
-                  ? getTileStates(submittedGuess, currentWord.original)
-                  : null;
-
-                return (
-                  <View key={rowIndex} style={styles.wordleRow}>
-                    {Array.from({ length: currentWord.length }).map((_, colIndex) => {
-                      let letter = '';
-                      let tileStyle = styles.workleTileEmpty;
-                      let letterStyle = styles.workleTileLetter;
-
-                      if (submittedGuess) {
-                        letter = submittedGuess[colIndex] || '';
-                        const state = tileStates![colIndex];
-                        tileStyle =
-                          state === 'correct'
-                            ? styles.workleTileCorrect
-                            : state === 'present'
-                            ? styles.workleTilePresent
-                            : styles.workleTileAbsent;
-                        letterStyle = styles.workleTileLetterLight;
-                      } else if (isCurrentRow) {
-                        letter = wordleCurrentGuess[colIndex] || '';
-                        tileStyle = letter ? styles.workleTileFilled : styles.workleTileEmpty;
-                      }
-
-                      return (
-                        <View
-                          key={colIndex}
-                          style={[styles.workleTile, tileStyle, { width: tileSize, height: tileSize }]}
-                        >
-                          <Text style={[letterStyle, { fontSize: Math.floor(tileSize * 0.42) }]}>
-                            {letter.toUpperCase()}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* Current guess input */}
+            {/* Hidden input — captures keyboard without showing a box */}
             {!wordleGameOver && (
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.input}
-                  value={wordleCurrentGuess}
-                  onChangeText={handleWordleChange}
-                  placeholder={`Type a ${currentWord.length}-letter word...`}
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  maxLength={currentWord.length}
-                  editable={!timeLimitExpired}
-                />
-                <Text style={styles.letterCountIndicator}>
-                  {wordleCurrentGuess.length} / {currentWord.length} letters
-                  {' '}• Attempt {wordleGuesses.length + 1} of {wordLength + 1}
-                </Text>
-              </View>
+              <TextInput
+                ref={wordleInputRef}
+                style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
+                value={wordleCurrentGuess}
+                onChangeText={handleWordleChange}
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                maxLength={currentWord.length}
+                editable={!timeLimitExpired}
+              />
             )}
+
+            {/* (wordLength + 1)-row Wordle grid — tap to focus keyboard */}
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => wordleInputRef.current?.focus()}
+              disabled={wordleGameOver}
+            >
+              <View style={[styles.wordleGrid, { gap: tileGap }]}>
+                {Array.from({ length: wordLength + 1 }).map((_, rowIndex) => {
+                  const submittedGuess = wordleGuesses[rowIndex];
+                  const isCurrentRow = rowIndex === wordleGuesses.length && !wordleGameOver;
+                  const tileStates = submittedGuess
+                    ? getTileStates(submittedGuess, currentWord.original)
+                    : null;
+
+                  return (
+                    <View key={rowIndex} style={[styles.wordleRow, { gap: tileGap }]}>
+                      {Array.from({ length: currentWord.length }).map((_, colIndex) => {
+                        let letter = '';
+                        let tileStyle = styles.workleTileEmpty;
+                        let letterStyle = styles.workleTileLetter;
+                        // Show a cursor bar in the next empty cell of the active row
+                        const isCursorCell =
+                          isCurrentRow &&
+                          !wordleCurrentRowInvalid &&
+                          colIndex === wordleCurrentGuess.length;
+
+                        if (submittedGuess) {
+                          letter = submittedGuess[colIndex] || '';
+                          const state = tileStates![colIndex];
+                          tileStyle =
+                            state === 'correct'
+                              ? styles.workleTileCorrect
+                              : state === 'present'
+                              ? styles.workleTilePresent
+                              : styles.workleTileAbsent;
+                          letterStyle = styles.workleTileLetterLight;
+                        } else if (isCurrentRow) {
+                          letter = wordleCurrentGuess[colIndex] || '';
+                          if (wordleCurrentRowInvalid) {
+                            tileStyle = styles.workleTileInvalid;
+                            letterStyle = styles.workleTileLetterLight;
+                          } else {
+                            tileStyle = letter ? styles.workleTileFilled : styles.workleTileEmpty;
+                          }
+                        }
+
+                        return (
+                          <View
+                            key={colIndex}
+                            style={[styles.workleTile, tileStyle, { width: tileSize, height: tileSize }]}
+                          >
+                            <Text style={[letterStyle, { fontSize: Math.floor(tileSize * 0.42) }]}>
+                              {isCursorCell && !letter ? '|' : letter.toUpperCase()}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+              </View>
+            </TouchableOpacity>
 
             {/* Win / Lose banner */}
             {wordleGameOver && (
@@ -415,14 +554,6 @@ export default function WordUnjumbleGame() {
               </View>
             )}
 
-            {/* Summary button */}
-            <TouchableOpacity
-              style={[styles.summaryButton, styles.summaryButtonFull, { marginTop: 8 }]}
-              onPress={() => setShowSummary(true)}
-            >
-              <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
-              <Text style={styles.summaryButtonText}>Summary</Text>
-            </TouchableOpacity>
           </ScrollView>
         ) : currentWord ? (
           /* Single word mode */
@@ -489,17 +620,19 @@ export default function WordUnjumbleGame() {
               <TextInput
                 style={[
                   styles.input,
+                  !showResult && currentWord && dictionaryErrors[currentWord.id] && styles.inputInvalidWord,
                   showResult && isCorrect && styles.inputCorrect,
                   showResult && !isCorrect && styles.inputIncorrect,
                 ]}
                 value={currentAnswer}
                 onChangeText={handleSingleWordChange}
-                placeholder="Type your answer..."
+                placeholder={useCustomKeyboard ? '' : 'Type your answer...'}
                 placeholderTextColor={COLORS.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
                 maxLength={currentWord.length}
-                editable={(!isCorrect || !showResult) && !timeLimitExpired}
+                editable={!useCustomKeyboard && (!isCorrect || !showResult) && !timeLimitExpired}
+                showSoftInputOnFocus={!useCustomKeyboard}
               />
 
               {/* Letter count indicator */}
@@ -510,27 +643,29 @@ export default function WordUnjumbleGame() {
               )}
 
               {/* Button row */}
-              <View style={styles.singleWordButtonRow}>
-                {showResult && isCorrect && (
-                  <TouchableOpacity
-                    style={[styles.oneMoreButton, styles.oneMoreButtonFlex]}
-                    onPress={fetchOneMoreWord}
-                  >
-                    <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
-                    <Text style={styles.oneMoreButtonText}>One More</Text>
-                  </TouchableOpacity>
-                )}
+              {showResult && isCorrect && (
                 <TouchableOpacity
-                  style={[styles.summaryButton, (!showResult || !isCorrect) && styles.summaryButtonFull]}
-                  onPress={() => setShowSummary(true)}
+                  style={styles.oneMoreButton}
+                  onPress={fetchOneMoreWord}
                 >
-                  <Ionicons name="stats-chart-outline" size={18} color={COLORS.primary} />
-                  <Text style={styles.summaryButtonText}>Summary</Text>
+                  <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
+                  <Text style={styles.oneMoreButtonText}>One More</Text>
                 </TouchableOpacity>
-              </View>
+              )}
             </View>
           </ScrollView>
         ) : null}
+        </View>
+
+        {/* Custom Keyboard */}
+        {useCustomKeyboard && gameStarted && !loading && !gameCompleted && !wordleGameOver && !timeLimitExpired && (
+          <CustomKeyboard
+            onKey={handleCustomKey}
+            onBackspace={handleCustomBackspace}
+            letterStates={wordleLetterStates}
+            disabled={timeLimitExpired}
+          />
+        )}
 
         {/* Summary Modal */}
         <Modal
@@ -707,6 +842,30 @@ export default function WordUnjumbleGame() {
                         tempTimeLimit === limit && styles.optionTextActive,
                       ]}>
                         {limit === null ? 'None' : `${limit / 60}m`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Keyboard Selection */}
+              <View style={styles.settingSection}>
+                <Text style={styles.settingLabel}>Keyboard</Text>
+                <View style={styles.optionRow}>
+                  {(['system', 'custom'] as const).map((kb) => (
+                    <TouchableOpacity
+                      key={kb}
+                      style={[
+                        styles.optionButton,
+                        tempKeyboardStyle === kb && styles.optionButtonActive,
+                      ]}
+                      onPress={() => setTempKeyboardStyle(kb)}
+                    >
+                      <Text style={[
+                        styles.optionText,
+                        tempKeyboardStyle === kb && styles.optionTextActive,
+                      ]}>
+                        {kb === 'system' ? 'System' : 'Custom'}
                       </Text>
                     </TouchableOpacity>
                   ))}

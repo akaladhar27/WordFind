@@ -41,6 +41,11 @@ export function useGameLogic() {
   const [timerRunning, setTimerRunning] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Dictionary validation errors: wordId -> true when the entered word isn't in the dictionary
+  const [dictionaryErrors, setDictionaryErrors] = useState<Record<string, boolean>>({});
+  // True while the current wordle row is flashing red (invalid word)
+  const [wordleCurrentRowInvalid, setWordleCurrentRowInvalid] = useState(false);
+
   // Hint state
   const [hints, setHints] = useState<HintState>({});
 
@@ -74,11 +79,15 @@ export function useGameLogic() {
     return merged;
   };
 
+  // Keyboard style
+  const [keyboardStyle, setKeyboardStyle] = useState<'system' | 'custom'>('system');
+
   // Temporary settings state for modal
   const [tempWordLength, setTempWordLength] = useState(wordLength);
   const [tempWordCount, setTempWordCount] = useState(wordCount);
   const [tempTimeLimit, setTempTimeLimit] = useState<number | null>(null);
   const [tempGameStyle, setTempGameStyle] = useState<'classic' | 'wordle'>('classic');
+  const [tempKeyboardStyle, setTempKeyboardStyle] = useState<'system' | 'custom'>('system');
 
   // Timer effect
   useEffect(() => {
@@ -105,13 +114,27 @@ export function useGameLogic() {
     if (!currentWord || wordleGameOver || gameStyle !== 'wordle') return;
     if (wordleCurrentGuess.length !== currentWord.length) return;
 
-    const timer = setTimeout(() => {
-      const newGuesses = [...wordleGuesses, wordleCurrentGuess];
+    const timer = setTimeout(async () => {
+      const guessWord = wordleCurrentGuess;
+
+      // Check the dictionary before committing the row
+      const valid = await checkWordInDictionary(guessWord);
+      if (!valid) {
+        // Flash the row red, then clear so the player can re-type
+        setWordleCurrentRowInvalid(true);
+        setTimeout(() => {
+          setWordleCurrentGuess('');
+          setWordleCurrentRowInvalid(false);
+        }, 600);
+        return;
+      }
+
+      const newGuesses = [...wordleGuesses, guessWord];
       setWordleGuesses(newGuesses);
       setWordleCurrentGuess('');
       setWordleAttempt(newGuesses.length);
 
-      const correct = wordleCurrentGuess.toLowerCase() === currentWord.original.toLowerCase();
+      const correct = guessWord.toLowerCase() === currentWord.original.toLowerCase();
       if (correct) {
         setWordleWon(true);
         setWordleGameOver(true);
@@ -194,6 +217,18 @@ export function useGameLogic() {
     });
   };
 
+  const checkWordInDictionary = async (word: string): Promise<boolean> => {
+    try {
+      const response = await fetch(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`
+      );
+      return response.ok;
+    } catch {
+      // Network error — don't penalise the player
+      return true;
+    }
+  };
+
   const fetchWords = useCallback(async () => {
     setLoading(true);
     setElapsedTime(0);
@@ -205,6 +240,8 @@ export function useGameLogic() {
     setWordleGameOver(false);
     setWordleWon(false);
     setHints({});
+    setDictionaryErrors({});
+    setWordleCurrentRowInvalid(false);
     try {
       const exclude = await loadSeenWords(wordLength);
       const words = getWords(wordLength, wordCount, exclude);
@@ -238,6 +275,8 @@ export function useGameLogic() {
     setWordleGameOver(false);
     setWordleWon(false);
     setHints({});
+    setDictionaryErrors({});
+    setWordleCurrentRowInvalid(false);
     try {
       const exclude = await loadSeenWords(length);
       const words = getWords(length, count, exclude);
@@ -331,6 +370,7 @@ export function useGameLogic() {
     setTempWordCount(wordCount);
     setTempTimeLimit(timeLimit);
     setTempGameStyle(gameStyle);
+    setTempKeyboardStyle(keyboardStyle);
     setShowSettings(true);
   };
 
@@ -342,6 +382,7 @@ export function useGameLogic() {
     setWordCount(effectiveWordCount);
     setTimeLimit(tempTimeLimit);
     setGameStyle(tempGameStyle);
+    setKeyboardStyle(tempKeyboardStyle);
     setShowSettings(false);
     fetchWordsWithSettings(tempWordLength, effectiveWordCount);
   };
@@ -355,6 +396,15 @@ export function useGameLogic() {
       setShowResult(false);
       setCurrentAnswer(cleanText);
       return;
+    }
+
+    // Clear dictionary error when user edits
+    if (cleanText.length < (currentAnswer?.length ?? 0)) {
+      setDictionaryErrors(prev => {
+        const next = { ...prev };
+        delete next[currentWord.id];
+        return next;
+      });
     }
 
     setCurrentAnswer(cleanText);
@@ -376,6 +426,14 @@ export function useGameLogic() {
             score: prev.score + 1,
           }));
         }
+        // Only check dictionary when the answer is wrong (correct words are obviously valid)
+        if (!correct) {
+          checkWordInDictionary(cleanText).then(valid => {
+            if (!valid) {
+              setDictionaryErrors(prev => ({ ...prev, [currentWord.id]: true }));
+            }
+          });
+        }
       }, 100);
     }
   };
@@ -389,6 +447,11 @@ export function useGameLogic() {
     const prevAnswer = gameState.answers[word.id] || '';
 
     if (isWordChecked && !isWordCorrect && cleanText.length < prevAnswer.length) {
+      setDictionaryErrors(prev => {
+        const next = { ...prev };
+        delete next[word.id];
+        return next;
+      });
       setGameState(prev => {
         const newResults = { ...prev.results };
         delete newResults[word.id];
@@ -399,6 +462,15 @@ export function useGameLogic() {
         };
       });
       return;
+    }
+
+    // Clear dictionary error when user edits
+    if (cleanText.length < prevAnswer.length) {
+      setDictionaryErrors(prev => {
+        const next = { ...prev };
+        delete next[word.id];
+        return next;
+      });
     }
 
     updateAnswer(word.id, cleanText);
@@ -417,6 +489,12 @@ export function useGameLogic() {
             ...prev,
             results: { ...prev.results, [word.id]: correct },
           }));
+          // Check dictionary only for wrong answers
+          checkWordInDictionary(cleanText).then(valid => {
+            if (!valid) {
+              setDictionaryErrors(prev => ({ ...prev, [word.id]: true }));
+            }
+          });
         }
       }, 100);
     }
@@ -480,11 +558,18 @@ export function useGameLogic() {
     gameStyle,
     tempGameStyle,
     setTempGameStyle,
+    // Keyboard style
+    keyboardStyle,
+    tempKeyboardStyle,
+    setTempKeyboardStyle,
     // Wordle
     wordleGuesses,
     wordleCurrentGuess,
     wordleAttempt,
     wordleGameOver,
     wordleWon,
+    // Dictionary validation
+    dictionaryErrors,
+    wordleCurrentRowInvalid,
   };
 }
