@@ -3,6 +3,8 @@
 # IDE and editors
 .idea/
 .vscode/
+#cache
+frontend/.metro-cache/
 
 # Dependencies
 node_modules/
