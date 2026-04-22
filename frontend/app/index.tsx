@@ -38,8 +38,6 @@ export default function WordUnjumbleGame() {
     currentAnswer,
     showResult,
     isCorrect,
-    showSummary,
-    setShowSummary,
     elapsedTime,
     formatTime,
     timeLimit,
@@ -59,9 +57,6 @@ export default function WordUnjumbleGame() {
     gameStyle,
     tempGameStyle,
     setTempGameStyle,
-    keyboardStyle,
-    tempKeyboardStyle,
-    setTempKeyboardStyle,
     wordleGuesses,
     wordleCurrentGuess,
     wordleAttempt,
@@ -69,6 +64,11 @@ export default function WordUnjumbleGame() {
     wordleWon,
     dictionaryErrors,
     wordleCurrentRowInvalid,
+    foundWords,
+    invalidWordError,
+    duplicateWordError,
+    wordSolved,
+    solvedHintIndices,
   } = useGameLogic();
 
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -131,19 +131,12 @@ export default function WordUnjumbleGame() {
     return result;
   };
 
-  // Hidden input ref for capturing wordle keyboard input (system keyboard only)
+  // Hidden input ref for capturing wordle keyboard input
   const wordleInputRef = useRef<TextInput>(null);
 
   // Focused word for multi-word + custom keyboard
   const [focusedWordId, setFocusedWordId] = useState<string | null>(null);
 
-  // Auto-focus the hidden wordle input only when using system keyboard
-  useEffect(() => {
-    if (gameStyle === 'wordle' && !wordleGameOver && keyboardStyle === 'system') {
-      const t = setTimeout(() => wordleInputRef.current?.focus(), 300);
-      return () => clearTimeout(t);
-    }
-  }, [gameStyle, wordleGameOver, keyboardStyle]);
 
   // Wordle letter states — used by custom keyboard for colour hints
   const wordleLetterStates = useMemo((): Record<string, 'correct' | 'present' | 'absent'> => {
@@ -164,13 +157,13 @@ export default function WordUnjumbleGame() {
     return states;
   }, [gameStyle, wordleGuesses, gameState.words]);
 
-  const useCustomKeyboard = keyboardStyle === 'custom';
+  const useCustomKeyboard = true;
 
   // Custom keyboard handlers
   const handleCustomKey = (key: string) => {
     if (gameStyle === 'wordle') {
       handleWordleChange(wordleCurrentGuess + key);
-    } else if (gameState.words.length === 1) {
+    } else if (wordCount === 1) {
       const cw = gameState.words[gameState.currentIndex];
       if (cw) handleSingleWordChange(currentAnswer + key);
     } else {
@@ -184,7 +177,7 @@ export default function WordUnjumbleGame() {
   const handleCustomBackspace = () => {
     if (gameStyle === 'wordle') {
       handleWordleChange(wordleCurrentGuess.slice(0, -1));
-    } else if (gameState.words.length === 1) {
+    } else if (wordCount === 1) {
       handleSingleWordChange(currentAnswer.slice(0, -1));
     } else {
       if (!focusedWordId) return;
@@ -257,10 +250,6 @@ export default function WordUnjumbleGame() {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Word Find</Text>
-            <Text style={styles.subtitle}>
-              {wordLength} letters • {wordCount} word{wordCount > 1 ? 's' : ''}
-              {timeLimit !== null ? ` • ${timeLimit / 60}m limit` : ''}
-            </Text>
           </View>
           <View style={styles.headerRight}>
             {gameStarted && !loading && timeLimit !== null && (
@@ -283,13 +272,7 @@ export default function WordUnjumbleGame() {
                 </Text>
               </View>
             )}
-            {gameStarted && !loading && (
-              <TouchableOpacity style={styles.headerSummaryButton} onPress={() => setShowSummary(true)}>
-                <Ionicons name="stats-chart-outline" size={15} color={COLORS.textLight} />
-                <Text style={styles.headerSummaryButtonText}>Stats</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={styles.newGameButton} onPress={openSettings}>
+<TouchableOpacity style={styles.newGameButton} onPress={openSettings}>
               <Ionicons name="add-outline" size={18} color={COLORS.card} />
               <Text style={styles.newGameButtonText}>New</Text>
             </TouchableOpacity>
@@ -305,21 +288,13 @@ export default function WordUnjumbleGame() {
           </View>
         ) : gameCompleted ? (
           <GameCompletedScreen />
-        ) : gameState.words.length > 1 ? (
+        ) : wordCount > 1 ? (
           /* Multi-word mode */
           <ScrollView
             contentContainerStyle={styles.gameContent}
             keyboardShouldPersistTaps="handled"
           >
             {/* Progress Header */}
-            <View style={styles.progressContainer}>
-              <Text style={styles.progressText}>
-                {gameState.words.length} Untangle the words
-              </Text>
-              <Text style={styles.scoreText}>
-                Score: {Object.values(gameState.results).filter(r => r === true).length}
-              </Text>
-            </View>
 
             {/* All Words List */}
             {gameState.words.map((word, index) => {
@@ -332,9 +307,9 @@ export default function WordUnjumbleGame() {
               return (
                 <TouchableOpacity
                   key={word.id}
-                  activeOpacity={useCustomKeyboard && !isWordCorrect && !timeLimitExpired ? 0.7 : 1}
+                  activeOpacity={!isWordCorrect && !timeLimitExpired ? 0.7 : 1}
                   onPress={() => {
-                    if (useCustomKeyboard && !isWordCorrect && !timeLimitExpired) {
+                    if (!isWordCorrect && !timeLimitExpired) {
                       setFocusedWordId(word.id);
                     }
                   }}
@@ -368,14 +343,9 @@ export default function WordUnjumbleGame() {
                     ))}
                   </View>
 
-                  {/* Hint Display and Button */}
+                  {/* Hint Button */}
                   {!isWordChecked && (
                     <View style={styles.hintSection}>
-                      {(hints[word.id] || []).length > 0 && (
-                        <Text style={styles.hintDisplay}>
-                          Hint: {getHintDisplay(word.id, word.original)}
-                        </Text>
-                      )}
                       <View style={styles.actionButtonsRow}>
                         <TouchableOpacity
                           style={[
@@ -408,32 +378,47 @@ export default function WordUnjumbleGame() {
                     </View>
                   )}
 
-                  {/* Answer Input */}
-                  <TextInput
-                    style={[
-                      styles.multiWordInput,
-                      !isWordChecked && dictionaryErrors[word.id] && styles.inputInvalidWord,
-                      isWordChecked && isWordCorrect && styles.inputCorrect,
-                      isWordChecked && !isWordCorrect && styles.inputIncorrect,
-                      useCustomKeyboard && isFocused && !isWordCorrect && styles.multiWordInputFocused,
-                    ]}
-                    value={gameState.answers[word.id] || ''}
-                    onChangeText={(text) => handleMultiWordChange(word, text)}
-                    placeholder={useCustomKeyboard ? (isFocused ? '' : 'Tap to select') : 'Type your answer...'}
-                    placeholderTextColor={COLORS.textMuted}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    maxLength={word.length}
-                    editable={!useCustomKeyboard && !isWordCorrect && !timeLimitExpired}
-                    showSoftInputOnFocus={!useCustomKeyboard}
-                  />
+                  {/* Answer blocks */}
+                  <View style={[styles.answerBlocksRow, { gap: smallGap }]}>
+                    {Array.from({ length: word.length }).map((_, i) => {
+                      const wordAnswer = gameState.answers[word.id] || '';
+                      const typedChar = wordAnswer[i];
+                      const hintIndices = hints[word.id] || [];
+                      const isHintPos = hintIndices.includes(i);
+                      const hintChar = isHintPos ? word.original[i] : null;
+                      const displayChar = typedChar || hintChar;
+                      const isActive = i === wordAnswer.length && isFocused && !isWordChecked && !timeLimitExpired;
 
-                  {/* Letter count */}
-                  {(!isWordChecked || !isWordCorrect) && (
-                    <Text style={styles.multiWordLetterCount}>
-                      {(gameState.answers[word.id] || '').length} / {word.length} letters
-                    </Text>
-                  )}
+                      let tileStyle = styles.workleTileEmpty;
+                      let textStyle = styles.workleTileLetter;
+
+                      if (isWordCorrect && isHintPos) {
+                        tileStyle = styles.answerHintTile;
+                        textStyle = styles.workleTileLetter;
+                      } else if (isWordCorrect) {
+                        tileStyle = styles.workleTileCorrect;
+                        textStyle = styles.workleTileLetterLight;
+                      } else if (isWordChecked && !isWordCorrect && typedChar) {
+                        tileStyle = styles.workleTileAbsent;
+                        textStyle = styles.workleTileLetterLight;
+                      } else if (isHintPos && !typedChar) {
+                        tileStyle = styles.answerHintTile;
+                      } else if (typedChar) {
+                        tileStyle = styles.workleTileFilled;
+                      }
+
+                      return (
+                        <View
+                          key={i}
+                          style={[styles.workleTile, tileStyle, { width: smallCardSize, height: smallCardSize }]}
+                        >
+                          <Text style={[textStyle, { fontSize: Math.floor(smallCardSize * 0.42) }]}>
+                            {isActive && !displayChar ? '|' : (displayChar?.toUpperCase() || '')}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
                 </View>
                 </TouchableOpacity>
               );
@@ -441,7 +426,7 @@ export default function WordUnjumbleGame() {
 
             {/* One More Button */}
             {Object.keys(gameState.results).length === gameState.words.length &&
-              Object.values(gameState.results).some(r => r === true) && (
+              Object.values(gameState.results).every(r => r === true) && (
               <TouchableOpacity style={styles.oneMoreButton} onPress={fetchOneMoreWord}>
                 <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
                 <Text style={styles.oneMoreButtonText}>One More</Text>
@@ -533,20 +518,19 @@ export default function WordUnjumbleGame() {
               </View>
             </TouchableOpacity>
 
+            {/* Answer reveal — shown when time runs out or all guesses used */}
+            {(timeLimitExpired || (wordleGameOver && !wordleWon)) && (
+              <Text style={styles.wordleAnswerReveal}>
+                {currentWord.original.toUpperCase()}
+              </Text>
+            )}
+
             {/* Win / Lose banner */}
             {wordleGameOver && (
               <View style={wordleWon ? styles.wordleWinBanner : styles.wordleLoseBanner}>
                 <Text style={styles.wordleOutcomeTitle}>
                   {wordleWon ? 'Brilliant!' : 'Better luck next time!'}
                 </Text>
-                {!wordleWon && (
-                  <Text style={styles.wordleCorrectAnswer}>
-                    The word was{' '}
-                    <Text style={styles.wordleCorrectWord}>
-                      {currentWord.original.toUpperCase()}
-                    </Text>
-                  </Text>
-                )}
                 <TouchableOpacity style={styles.wordlePlayAgainButton} onPress={fetchWords}>
                   <Ionicons name="refresh" size={18} color={COLORS.card} />
                   <Text style={styles.wordlePlayAgainText}>Play Again</Text>
@@ -562,26 +546,14 @@ export default function WordUnjumbleGame() {
             keyboardShouldPersistTaps="handled"
           >
             {/* Progress */}
-            <View style={styles.progressContainer}>
-              <Text style={styles.progressText}>
-                Word {gameState.currentIndex + 1} of {gameState.words.length}
-              </Text>
-              <Text style={styles.scoreText}>Score: {gameState.score}</Text>
-            </View>
 
             {/* Jumbled Word Display */}
             <View style={styles.wordCard}>
-              <Text style={styles.wordCardLabel}>Unjumble this word:</Text>
               {renderJumbledWord(currentWord.jumbled)}
 
               {/* Hint Section */}
-              {!showResult && (
+              {!wordSolved && (
                 <View style={styles.singleWordHintSection}>
-                  {(hints[currentWord.id] || []).length > 0 && (
-                    <Text style={styles.singleWordHintDisplay}>
-                      Hint: {getHintDisplay(currentWord.id, currentWord.original)}
-                    </Text>
-                  )}
                   <View style={styles.singleWordActionButtonsRow}>
                     <TouchableOpacity
                       style={[
@@ -615,44 +587,108 @@ export default function WordUnjumbleGame() {
               )}
             </View>
 
-            {/* Answer Input */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[
-                  styles.input,
-                  !showResult && currentWord && dictionaryErrors[currentWord.id] && styles.inputInvalidWord,
-                  showResult && isCorrect && styles.inputCorrect,
-                  showResult && !isCorrect && styles.inputIncorrect,
-                ]}
-                value={currentAnswer}
-                onChangeText={handleSingleWordChange}
-                placeholder={useCustomKeyboard ? '' : 'Type your answer...'}
-                placeholderTextColor={COLORS.textMuted}
-                autoCapitalize="none"
-                autoCorrect={false}
-                maxLength={currentWord.length}
-                editable={!useCustomKeyboard && (!isCorrect || !showResult) && !timeLimitExpired}
-                showSoftInputOnFocus={!useCustomKeyboard}
-              />
+            {/* Solved word — shown below puzzle when word is solved */}
+            {wordSolved && (
+              <View style={[styles.solvedWordRow, { gap: tileGap }]}>
+                {currentWord.original.split('').map((letter, i) => {
+                  const wasHinted = solvedHintIndices.includes(i);
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        styles.workleTile,
+                        wasHinted ? styles.answerHintTile : styles.workleTileCorrect,
+                        { width: tileSize, height: tileSize },
+                      ]}
+                    >
+                      <Text style={[
+                        wasHinted ? styles.workleTileLetter : styles.workleTileLetterLight,
+                        { fontSize: Math.floor(tileSize * 0.42) },
+                      ]}>
+                        {letter.toUpperCase()}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
 
-              {/* Letter count indicator */}
-              {!showResult && (
-                <Text style={styles.letterCountIndicator}>
-                  {currentAnswer.length} / {currentWord.length} letters
-                </Text>
-              )}
+            {/* Found words list */}
+            {(foundWords[currentWord.id] || []).length > 0 && (
+              <View style={styles.foundWordsList}>
+                <View style={styles.foundWordsRow}>
+                  {(foundWords[currentWord.id] || []).map((word, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.foundWordChip,
+                        word === currentWord.original.toLowerCase() && styles.foundWordChipCorrect,
+                      ]}
+                    >
+                      <Text style={[
+                        styles.foundWordChipText,
+                        word === currentWord.original.toLowerCase() && styles.foundWordChipTextCorrect,
+                      ]}>
+                        {word.toUpperCase()}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
-              {/* Button row */}
-              {showResult && isCorrect && (
-                <TouchableOpacity
-                  style={styles.oneMoreButton}
-                  onPress={fetchOneMoreWord}
-                >
+            {/* Answer blocks / One More button */}
+            {!wordSolved ? (
+              <View style={styles.inputContainer}>
+                {/* Character blocks */}
+                <View>
+                  <View style={[styles.answerBlocksRow, { gap: tileGap }]}>
+                    {Array.from({ length: currentWord.length }).map((_, i) => {
+                      const typedChar = currentAnswer[i];
+                      const hintIndices = hints[currentWord.id] || [];
+                      const isHintPos = hintIndices.includes(i);
+                      const hintChar = isHintPos ? currentWord.original[i] : null;
+                      const displayChar = typedChar || hintChar;
+                      const isActive = i === currentAnswer.length && !timeLimitExpired;
+
+                      let tileStyle = styles.workleTileEmpty;
+                      let textStyle = styles.workleTileLetter;
+
+                      if (isHintPos && !typedChar) {
+                        tileStyle = styles.answerHintTile;
+                      } else if (typedChar) {
+                        tileStyle = styles.workleTileFilled;
+                      }
+
+                      return (
+                        <View
+                          key={i}
+                          style={[styles.workleTile, tileStyle, { width: tileSize, height: tileSize }]}
+                        >
+                          <Text style={[textStyle, { fontSize: Math.floor(tileSize * 0.42) }]}>
+                            {isActive && !displayChar ? '|' : (displayChar?.toUpperCase() || '')}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {invalidWordError && (
+                  <Text style={styles.invalidWordMessage}>Invalid word</Text>
+                )}
+                {duplicateWordError && (
+                  <Text style={styles.duplicateWordMessage}>Already found!</Text>
+                )}
+              </View>
+            ) : (
+              <View style={styles.inputContainer}>
+                <TouchableOpacity style={styles.oneMoreButton} onPress={fetchOneMoreWord}>
                   <Ionicons name="add-circle-outline" size={20} color={COLORS.card} />
                   <Text style={styles.oneMoreButtonText}>One More</Text>
                 </TouchableOpacity>
-              )}
-            </View>
+              </View>
+            )}
           </ScrollView>
         ) : null}
         </View>
@@ -666,70 +702,6 @@ export default function WordUnjumbleGame() {
             disabled={timeLimitExpired}
           />
         )}
-
-        {/* Summary Modal */}
-        <Modal
-          visible={showSummary}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowSummary(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.summaryModalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Game Summary</Text>
-                <TouchableOpacity onPress={() => setShowSummary(false)}>
-                  <Ionicons name="close" size={24} color={COLORS.text} />
-                </TouchableOpacity>
-              </View>
-              {timeLimitExpired && (
-                <View style={styles.timesUpBanner}>
-                  <Ionicons name="alarm-outline" size={20} color={COLORS.errorDark} />
-                  <Text style={styles.timesUpText}>Time's Up!</Text>
-                </View>
-              )}
-              <View style={styles.summaryStats}>
-                <View style={styles.summaryStatItem}>
-                  <Text style={styles.summaryStatNumber}>{Object.keys(gameState.results).length}</Text>
-                  <Text style={styles.summaryStatLabel}>Played</Text>
-                </View>
-                <View style={[styles.summaryStatItem, styles.summaryStatCorrect]}>
-                  <Text style={[styles.summaryStatNumber, { color: COLORS.successDark }]}>
-                    {Object.values(gameState.results).filter(r => r === true).length}
-                  </Text>
-                  <Text style={styles.summaryStatLabel}>Correct</Text>
-                </View>
-                <View style={[styles.summaryStatItem, styles.summaryStatIncorrect]}>
-                  <Text style={[styles.summaryStatNumber, { color: COLORS.errorDark }]}>
-                    {Object.values(gameState.results).filter(r => r === false).length}
-                  </Text>
-                  <Text style={styles.summaryStatLabel}>Incorrect</Text>
-                </View>
-              </View>
-              <View style={styles.summaryTimeContainer}>
-                <Ionicons name="time-outline" size={20} color={COLORS.textLight} />
-                <Text style={styles.summaryTime}>Time: {formatTime(elapsedTime)}</Text>
-              </View>
-              <View style={styles.summaryActions}>
-                {!gameCompleted && !wordleGameOver && !timeLimitExpired && (
-                  <TouchableOpacity
-                    style={styles.summaryCloseButton}
-                    onPress={() => setShowSummary(false)}
-                  >
-                    <Text style={styles.summaryCloseButtonText}>Continue Playing</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={styles.summaryRestartButton}
-                  onPress={() => { setShowSummary(false); fetchWords(); }}
-                >
-                  <Ionicons name="refresh" size={18} color={COLORS.card} />
-                  <Text style={styles.summaryRestartButtonText}>Start Over</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
 
         {/* Settings Modal */}
         <Modal
@@ -842,30 +814,6 @@ export default function WordUnjumbleGame() {
                         tempTimeLimit === limit && styles.optionTextActive,
                       ]}>
                         {limit === null ? 'None' : `${limit / 60}m`}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Keyboard Selection */}
-              <View style={styles.settingSection}>
-                <Text style={styles.settingLabel}>Keyboard</Text>
-                <View style={styles.optionRow}>
-                  {(['system', 'custom'] as const).map((kb) => (
-                    <TouchableOpacity
-                      key={kb}
-                      style={[
-                        styles.optionButton,
-                        tempKeyboardStyle === kb && styles.optionButtonActive,
-                      ]}
-                      onPress={() => setTempKeyboardStyle(kb)}
-                    >
-                      <Text style={[
-                        styles.optionText,
-                        tempKeyboardStyle === kb && styles.optionTextActive,
-                      ]}>
-                        {kb === 'system' ? 'System' : 'Custom'}
                       </Text>
                     </TouchableOpacity>
                   ))}

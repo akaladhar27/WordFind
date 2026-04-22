@@ -43,11 +43,6 @@ export function createStyles(width: number, height: number) {
       fontWeight: '700',
       color: COLORS.text,
     },
-    subtitle: {
-      fontSize: f(13),
-      color: COLORS.textLight,
-      marginTop: hv(2),
-    },
     settingsIcon: {
       width: w(44),
       height: w(44),
@@ -75,22 +70,7 @@ export function createStyles(width: number, height: number) {
       fontWeight: '600',
       color: COLORS.card,
     },
-    headerSummaryButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: COLORS.background,
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      paddingHorizontal: w(10),
-      paddingVertical: hv(6),
-      borderRadius: w(20),
-      gap: w(4),
-    },
-    headerSummaryButtonText: {
-      fontSize: f(12),
-      fontWeight: '500',
-      color: COLORS.textLight,
-    },
+
 
     // ── Loading ──────────────────────────────────────────────────────────────
     loadingContainer: {
@@ -109,21 +89,6 @@ export function createStyles(width: number, height: number) {
       flexGrow: 1,
       padding: w(16),
     },
-    progressContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: hv(18),
-    },
-    progressText: {
-      fontSize: f(14),
-      color: COLORS.textLight,
-    },
-    scoreText: {
-      fontSize: f(14),
-      fontWeight: '600',
-      color: COLORS.primary,
-    },
 
     // ── Single-word card ─────────────────────────────────────────────────────
     wordCard: {
@@ -137,11 +102,6 @@ export function createStyles(width: number, height: number) {
       shadowRadius: 8,
       elevation: 2,
       marginBottom: hv(18),
-    },
-    wordCardLabel: {
-      fontSize: f(14),
-      color: COLORS.textLight,
-      marginBottom: hv(14),
     },
     letterContainer: {
       flexDirection: 'row',
@@ -364,14 +324,7 @@ export function createStyles(width: number, height: number) {
       padding: w(22),
       paddingBottom: hv(36),
     },
-    summaryModalContent: {
-      backgroundColor: COLORS.card,
-      borderTopLeftRadius: w(24),
-      borderTopRightRadius: w(24),
-      padding: w(22),
-      paddingBottom: hv(36),
-    },
-    modalHeader: {
+modalHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
@@ -432,95 +385,6 @@ export function createStyles(width: number, height: number) {
       color: COLORS.card,
     },
 
-    // ── Summary modal ────────────────────────────────────────────────────────
-    summaryStats: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      marginVertical: hv(20),
-    },
-    summaryStatItem: {
-      alignItems: 'center',
-      padding: w(14),
-      borderRadius: w(12),
-      minWidth: w(72),
-    },
-    summaryStatCorrect: {
-      backgroundColor: '#E6FFED',
-    },
-    summaryStatIncorrect: {
-      backgroundColor: '#FEF3E7',
-    },
-    summaryStatNumber: {
-      fontSize: f(28),
-      fontWeight: '700',
-      color: COLORS.text,
-    },
-    summaryStatLabel: {
-      fontSize: f(12),
-      color: COLORS.textLight,
-      marginTop: hv(4),
-    },
-    summaryTimeContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: w(8),
-      marginBottom: hv(20),
-    },
-    summaryTime: {
-      fontSize: f(14),
-      color: COLORS.textLight,
-    },
-    summaryActions: {
-      gap: hv(10),
-    },
-    summaryCloseButton: {
-      backgroundColor: COLORS.background,
-      borderRadius: w(12),
-      paddingVertical: hv(14),
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: COLORS.border,
-    },
-    summaryCloseButtonText: {
-      fontSize: f(14),
-      fontWeight: '600',
-      color: COLORS.primary,
-    },
-    summaryRestartButton: {
-      backgroundColor: COLORS.primary,
-      borderRadius: w(12),
-      paddingVertical: hv(14),
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: w(8),
-    },
-    summaryRestartButtonText: {
-      fontSize: f(14),
-      fontWeight: '600',
-      color: COLORS.card,
-    },
-    summaryButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: COLORS.background,
-      paddingHorizontal: w(14),
-      paddingVertical: hv(14),
-      borderRadius: w(12),
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      gap: w(6),
-    },
-    summaryButtonText: {
-      fontSize: f(13),
-      fontWeight: '500',
-      color: COLORS.primary,
-    },
-    summaryButtonFull: {
-      flex: 1,
-    },
     timesUpBanner: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -758,21 +622,7 @@ export function createStyles(width: number, height: number) {
       textAlign: 'center',
       marginTop: hv(4),
     },
-    multiWordSummaryButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: COLORS.background,
-      paddingHorizontal: w(14),
-      paddingVertical: hv(14),
-      borderRadius: w(12),
-      borderWidth: 1,
-      borderColor: COLORS.border,
-      gap: w(6),
-      marginTop: hv(10),
-      marginBottom: hv(16),
-    },
-    checkAllButton: {
+checkAllButton: {
       backgroundColor: COLORS.primary,
       borderRadius: w(12),
       paddingVertical: hv(14),
@@ -893,6 +743,88 @@ export function createStyles(width: number, height: number) {
       fontSize: f(14),
       fontWeight: '600',
       color: COLORS.card,
+    },
+    wordleAnswerReveal: {
+      fontSize: f(22),
+      fontWeight: '700',
+      color: COLORS.text,
+      textAlign: 'center',
+      letterSpacing: 4,
+      marginBottom: hv(12),
+    },
+
+    // ── Word-jumble: found words list ────────────────────────────────────────
+    foundWordsList: {
+      marginBottom: hv(14),
+    },
+    foundWordsLabel: {
+      fontSize: f(12),
+      fontWeight: '600',
+      color: COLORS.textMuted,
+      marginBottom: hv(6),
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    foundWordsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: w(6),
+    },
+    foundWordChip: {
+      paddingHorizontal: w(10),
+      paddingVertical: hv(5),
+      borderRadius: w(14),
+      backgroundColor: COLORS.background,
+      borderWidth: 1,
+      borderColor: COLORS.border,
+    },
+    foundWordChipCorrect: {
+      backgroundColor: '#E6FFED',
+      borderColor: COLORS.successDark,
+    },
+    foundWordChipText: {
+      fontSize: f(13),
+      fontWeight: '600',
+      color: COLORS.textLight,
+    },
+    foundWordChipTextCorrect: {
+      color: COLORS.successDark,
+    },
+
+    // ── Word-jumble: invalid word message ────────────────────────────────────
+    invalidWordMessage: {
+      fontSize: f(13),
+      fontWeight: '600',
+      color: COLORS.errorDark,
+      textAlign: 'center',
+      marginTop: hv(2),
+    },
+    duplicateWordMessage: {
+      fontSize: f(13),
+      fontWeight: '600',
+      color: COLORS.hintDark,
+      textAlign: 'center',
+      marginTop: hv(2),
+    },
+
+    // ── Classic mode answer blocks ────────────────────────────────────────────
+    answerBlocksRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    // Hint-revealed tile: yellow background
+    answerHintTile: {
+      borderColor: '#D69E2E',
+      backgroundColor: '#FFFBEB',
+    },
+    // Solved word row shown below the puzzle card
+    solvedWordRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: hv(12),
+      marginBottom: hv(10),
     },
   });
 }

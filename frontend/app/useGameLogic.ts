@@ -3,6 +3,7 @@ import { Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GameState, HintState, JumbledWord } from './types';
 import { getWords } from './wordService';
+import { isValidWord } from './dictionaryService';
 
 export function useGameLogic() {
   // Game settings
@@ -25,7 +26,6 @@ export function useGameLogic() {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [showSummary, setShowSummary] = useState(false);
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
   const [timeLimitExpired, setTimeLimitExpired] = useState(false);
 
@@ -45,6 +45,19 @@ export function useGameLogic() {
   const [dictionaryErrors, setDictionaryErrors] = useState<Record<string, boolean>>({});
   // True while the current wordle row is flashing red (invalid word)
   const [wordleCurrentRowInvalid, setWordleCurrentRowInvalid] = useState(false);
+
+  // Word-jumble mode: valid words found so far, keyed by wordId
+  const [foundWords, setFoundWords] = useState<Record<string, string[]>>({});
+  // True when the entered word was rejected; auto-clears after a short delay
+  const [invalidWordError, setInvalidWordError] = useState(false);
+  const invalidWordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True when the entered word is already in the found-words list; auto-clears after a short delay
+  const [duplicateWordError, setDuplicateWordError] = useState(false);
+  const duplicateWordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True once the player has typed the correct original word for the current puzzle
+  const [wordSolved, setWordSolved] = useState(false);
+  // Hint indices captured at the moment of solving (so the solved display keeps the correct colours)
+  const [solvedHintIndices, setSolvedHintIndices] = useState<number[]>([]);
 
   // Hint state
   const [hints, setHints] = useState<HintState>({});
@@ -79,15 +92,11 @@ export function useGameLogic() {
     return merged;
   };
 
-  // Keyboard style
-  const [keyboardStyle, setKeyboardStyle] = useState<'system' | 'custom'>('system');
-
   // Temporary settings state for modal
   const [tempWordLength, setTempWordLength] = useState(wordLength);
   const [tempWordCount, setTempWordCount] = useState(wordCount);
   const [tempTimeLimit, setTempTimeLimit] = useState<number | null>(null);
   const [tempGameStyle, setTempGameStyle] = useState<'classic' | 'wordle'>('classic');
-  const [tempKeyboardStyle, setTempKeyboardStyle] = useState<'system' | 'custom'>('system');
 
   // Timer effect
   useEffect(() => {
@@ -118,7 +127,7 @@ export function useGameLogic() {
       const guessWord = wordleCurrentGuess;
 
       // Check the dictionary before committing the row
-      const valid = await checkWordInDictionary(guessWord);
+      const valid = await isValidWord(guessWord);
       if (!valid) {
         // Flash the row red, then clear so the player can re-type
         setWordleCurrentRowInvalid(true);
@@ -161,7 +170,6 @@ export function useGameLogic() {
     if (timeLimit !== null && elapsedTime >= timeLimit && timerRunning) {
       setTimerRunning(false);
       setTimeLimitExpired(true);
-      setShowSummary(true);
     }
   }, [elapsedTime, timeLimit, timerRunning]);
 
@@ -217,18 +225,6 @@ export function useGameLogic() {
     });
   };
 
-  const checkWordInDictionary = async (word: string): Promise<boolean> => {
-    try {
-      const response = await fetch(
-        `https://api.dictionaryapi.dev/api/v2/entries/en/${word.toLowerCase()}`
-      );
-      return response.ok;
-    } catch {
-      // Network error — don't penalise the player
-      return true;
-    }
-  };
-
   const fetchWords = useCallback(async () => {
     setLoading(true);
     setElapsedTime(0);
@@ -240,8 +236,13 @@ export function useGameLogic() {
     setWordleGameOver(false);
     setWordleWon(false);
     setHints({});
+    setSolvedHintIndices([]);
     setDictionaryErrors({});
     setWordleCurrentRowInvalid(false);
+    setFoundWords({});
+    setInvalidWordError(false);
+    setDuplicateWordError(false);
+    setWordSolved(false);
     try {
       const exclude = await loadSeenWords(wordLength);
       const words = getWords(wordLength, wordCount, exclude);
@@ -275,8 +276,13 @@ export function useGameLogic() {
     setWordleGameOver(false);
     setWordleWon(false);
     setHints({});
+    setSolvedHintIndices([]);
     setDictionaryErrors({});
     setWordleCurrentRowInvalid(false);
+    setFoundWords({});
+    setInvalidWordError(false);
+    setDuplicateWordError(false);
+    setWordSolved(false);
     try {
       const exclude = await loadSeenWords(length);
       const words = getWords(length, count, exclude);
@@ -305,6 +311,10 @@ export function useGameLogic() {
       }));
       setCurrentAnswer('');
       setShowResult(false);
+      setWordSolved(false);
+      setSolvedHintIndices([]);
+      setInvalidWordError(false);
+      setDuplicateWordError(false);
       await addSeenWords(wordLength, [newWord.original]);
     } catch (error) {
       console.error('Error loading one more word:', error);
@@ -370,7 +380,6 @@ export function useGameLogic() {
     setTempWordCount(wordCount);
     setTempTimeLimit(timeLimit);
     setTempGameStyle(gameStyle);
-    setTempKeyboardStyle(keyboardStyle);
     setShowSettings(true);
   };
 
@@ -382,9 +391,21 @@ export function useGameLogic() {
     setWordCount(effectiveWordCount);
     setTimeLimit(tempTimeLimit);
     setGameStyle(tempGameStyle);
-    setKeyboardStyle(tempKeyboardStyle);
     setShowSettings(false);
     fetchWordsWithSettings(tempWordLength, effectiveWordCount);
+  };
+
+  // Shows the "Invalid word" message and auto-dismisses it after 1.5 s
+  const showInvalidWordError = () => {
+    if (invalidWordTimerRef.current) clearTimeout(invalidWordTimerRef.current);
+    setInvalidWordError(true);
+    invalidWordTimerRef.current = setTimeout(() => setInvalidWordError(false), 1500);
+  };
+
+  const showDuplicateWordError = () => {
+    if (duplicateWordTimerRef.current) clearTimeout(duplicateWordTimerRef.current);
+    setDuplicateWordError(true);
+    duplicateWordTimerRef.current = setTimeout(() => setDuplicateWordError(false), 1500);
   };
 
   // Handler for single-word mode text input
@@ -392,47 +413,51 @@ export function useGameLogic() {
     const currentWord = gameState.words[gameState.currentIndex];
     const cleanText = text.replace(/[^a-zA-Z]/g, '');
 
-    if (showResult && !isCorrect && cleanText.length < currentAnswer.length) {
-      setShowResult(false);
-      setCurrentAnswer(cleanText);
-      return;
-    }
-
-    // Clear dictionary error when user edits
-    if (cleanText.length < (currentAnswer?.length ?? 0)) {
-      setDictionaryErrors(prev => {
-        const next = { ...prev };
-        delete next[currentWord.id];
-        return next;
-      });
-    }
+    // Clear "invalid word" overlay whenever the user edits the input
+    if (invalidWordError) setInvalidWordError(false);
 
     setCurrentAnswer(cleanText);
 
-    if (showResult && isCorrect) {
-      setShowResult(false);
-    }
+    if (cleanText.length === currentWord.length) {
+      setTimeout(async () => {
+        // Reject words that don't use exactly the same letters as the puzzle
+        const sortedInput    = cleanText.toLowerCase().split('').sort().join('');
+        const sortedOriginal = currentWord.original.toLowerCase().split('').sort().join('');
+        if (sortedInput !== sortedOriginal) {
+          showInvalidWordError();
+          return;
+        }
 
-    if (cleanText.length === currentWord.length && !showResult) {
-      setTimeout(() => {
+        const valid = await isValidWord(cleanText);
+        if (!valid) {
+          showInvalidWordError();
+          return;
+        }
+        // Check if this valid word is the target word
         const correct = cleanText.toLowerCase().trim() === currentWord.original.toLowerCase();
-        setIsCorrect(correct);
-        setShowResult(true);
+        setCurrentAnswer('');
+
         if (correct) {
+          // Accepted as the solution — snapshot hint indices before clearing for solved display
+          setSolvedHintIndices(hints[currentWord.id] || []);
+          setWordSolved(true);
           setGameState(prev => ({
             ...prev,
             answers: { ...prev.answers, [currentWord.id]: cleanText },
-            results: { ...prev.results, [currentWord.id]: correct },
+            results: { ...prev.results, [currentWord.id]: true },
             score: prev.score + 1,
           }));
-        }
-        // Only check dictionary when the answer is wrong (correct words are obviously valid)
-        if (!correct) {
-          checkWordInDictionary(cleanText).then(valid => {
-            if (!valid) {
-              setDictionaryErrors(prev => ({ ...prev, [currentWord.id]: true }));
-            }
-          });
+        } else {
+          // Valid English word but not the target
+          const word = cleanText.toLowerCase();
+          if ((foundWords[currentWord.id] || []).includes(word)) {
+            showDuplicateWordError();
+          } else {
+            setFoundWords(prev => ({
+              ...prev,
+              [currentWord.id]: [...(prev[currentWord.id] || []), word],
+            }));
+          }
         }
       }, 100);
     }
@@ -490,7 +515,7 @@ export function useGameLogic() {
             results: { ...prev.results, [word.id]: correct },
           }));
           // Check dictionary only for wrong answers
-          checkWordInDictionary(cleanText).then(valid => {
+          isValidWord(cleanText).then(valid => {
             if (!valid) {
               setDictionaryErrors(prev => ({ ...prev, [word.id]: true }));
             }
@@ -527,9 +552,6 @@ export function useGameLogic() {
     currentAnswer,
     showResult,
     isCorrect,
-    // Summary
-    showSummary,
-    setShowSummary,
     // Timer
     elapsedTime,
     formatTime,
@@ -559,9 +581,6 @@ export function useGameLogic() {
     tempGameStyle,
     setTempGameStyle,
     // Keyboard style
-    keyboardStyle,
-    tempKeyboardStyle,
-    setTempKeyboardStyle,
     // Wordle
     wordleGuesses,
     wordleCurrentGuess,
@@ -571,5 +590,11 @@ export function useGameLogic() {
     // Dictionary validation
     dictionaryErrors,
     wordleCurrentRowInvalid,
+    // Word-jumble feature
+    foundWords,
+    invalidWordError,
+    duplicateWordError,
+    wordSolved,
+    solvedHintIndices,
   };
 }
