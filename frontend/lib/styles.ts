@@ -807,6 +807,114 @@ checkAllButton: {
       marginTop: hv(2),
     },
 
+    // ── History button ────────────────────────────────────────────────────────
+    historyButton: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      backgroundColor: COLORS.background,
+      paddingHorizontal: w(10),
+      paddingVertical: hv(7),
+      borderRadius: w(20),
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      gap: w(4),
+    },
+    historyButtonText: {
+      fontSize: f(13),
+      fontWeight: '600' as const,
+      color: COLORS.primary,
+    },
+
+    // ── History modal ─────────────────────────────────────────────────────────
+    historyModalContent: {
+      backgroundColor: COLORS.card,
+      borderTopLeftRadius: w(24),
+      borderTopRightRadius: w(24),
+      padding: w(22),
+      paddingBottom: hv(36),
+      maxHeight: '85%' as const,
+    },
+    historyList: {
+      marginTop: hv(4),
+    },
+    historyEmpty: {
+      textAlign: 'center' as const,
+      color: COLORS.textMuted,
+      fontSize: f(14),
+      marginTop: hv(32),
+    },
+    historyEntry: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      paddingVertical: hv(10),
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.border,
+      gap: w(10),
+    },
+    historyEntryWord: {
+      fontSize: f(16),
+      fontWeight: '700' as const,
+      color: COLORS.text,
+      flex: 1,
+      textTransform: 'uppercase' as const,
+      letterSpacing: 1,
+    },
+    historyBadgeRow: {
+      flexDirection: 'row' as const,
+      gap: w(5),
+      alignItems: 'center' as const,
+    },
+    historyBadgeSolved: {
+      backgroundColor: '#E6FFED',
+      borderRadius: w(10),
+      paddingHorizontal: w(8),
+      paddingVertical: hv(3),
+    },
+    historyBadgeMissed: {
+      backgroundColor: '#FFF5F5',
+      borderRadius: w(10),
+      paddingHorizontal: w(8),
+      paddingVertical: hv(3),
+    },
+    historyBadgeHint: {
+      backgroundColor: '#FFFBEB',
+      borderRadius: w(10),
+      paddingHorizontal: w(8),
+      paddingVertical: hv(3),
+      borderWidth: 1,
+      borderColor: COLORS.hint,
+    },
+    historyBadgeWordle: {
+      backgroundColor: '#EBF4FF',
+      borderRadius: w(10),
+      paddingHorizontal: w(8),
+      paddingVertical: hv(3),
+    },
+    historyBadgeText: {
+      fontSize: f(11),
+      fontWeight: '600' as const,
+    },
+    historyBadgeTextSolved: {
+      color: COLORS.successDark,
+    },
+    historyBadgeTextMissed: {
+      color: COLORS.errorDark,
+    },
+    historyBadgeTextHint: {
+      color: COLORS.hintDark,
+    },
+    historyBadgeTextWordle: {
+      color: '#2B6CB0',
+    },
+    historyEntryDate: {
+      fontSize: f(11),
+      color: COLORS.textMuted,
+      marginTop: hv(2),
+    },
+    historyEntryLeft: {
+      flex: 1,
+    },
+
     // ── Classic mode answer blocks ────────────────────────────────────────────
     answerBlocksRow: {
       flexDirection: 'row',
@@ -825,6 +933,12 @@ checkAllButton: {
       alignItems: 'center',
       paddingVertical: hv(12),
       marginBottom: hv(10),
+    },
+
+    // ── Ad banner placeholder ─────────────────────────────────────────────────
+    adBannerPlaceholder: {
+      height: 65,
+      backgroundColor: COLORS.background,
     },
   });
 }

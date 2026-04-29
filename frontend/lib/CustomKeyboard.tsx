@@ -11,12 +11,13 @@ const ROWS = [
 export interface CustomKeyboardProps {
   onKey: (key: string) => void;
   onBackspace: () => void;
+  onEnter: () => void;
   // Wordle letter state colouring — omit for classic mode
   letterStates?: Record<string, 'correct' | 'present' | 'absent'>;
   disabled?: boolean;
 }
 
-export function CustomKeyboard({ onKey, onBackspace, letterStates = {}, disabled = false }: CustomKeyboardProps) {
+export function CustomKeyboard({ onKey, onBackspace, onEnter, letterStates = {}, disabled = false }: CustomKeyboardProps) {
   const keyBg = (key: string) => {
     const s = letterStates[key.toLowerCase()];
     if (s === 'correct') return styles.keyCorrect;
@@ -44,16 +45,26 @@ export function CustomKeyboard({ onKey, onBackspace, letterStates = {}, disabled
             </TouchableOpacity>
           ))}
 
-          {/* Backspace only on the last row */}
+          {/* Enter and Backspace only on the last row */}
           {rowIndex === 2 && (
-            <TouchableOpacity
-              disabled={disabled}
-              style={[styles.key, styles.backspaceKey]}
-              onPress={onBackspace}
-              activeOpacity={0.65}
-            >
-              <Text style={styles.keyText}>⌫</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                disabled={disabled}
+                style={[styles.key, styles.enterKey]}
+                onPress={onEnter}
+                activeOpacity={0.65}
+              >
+                <Text style={[styles.keyText, styles.enterKeyText]}>Enter</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={disabled}
+                style={[styles.key, styles.backspaceKey]}
+                onPress={onBackspace}
+                activeOpacity={0.65}
+              >
+                <Text style={styles.keyText}>⌫</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       ))}
@@ -89,6 +100,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 1,
     elevation: 2,
+  },
+  enterKey: {
+    flex: 1.5,
+    maxWidth: 52,
+    backgroundColor: COLORS.primary,
+  },
+  enterKeyText: {
+    color: COLORS.card,
   },
   backspaceKey: {
     flex: 1.5,

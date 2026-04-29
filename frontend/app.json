@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "wordfind",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.frontend",
+      "bundleIdentifier": "com.naras.wordfind",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
@@ -18,12 +18,12 @@
       }
     },
     "android": {
-      "adaptiveIcon": {
+      "adaptiveIcolsn": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.frontend",
+      "package": "com.naras.wordfind",
       "usesCleartextTraffic": true
     },
     "web": {

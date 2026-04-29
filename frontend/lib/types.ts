@@ -17,6 +17,16 @@ export interface HintState {
   [wordId: string]: number[];
 }
 
+export interface HistoryEntry {
+  id: string;
+  word: string;
+  solved: boolean;
+  usedHint: boolean;
+  gameStyle: 'classic' | 'wordle';
+  wordLength: number;
+  timestamp: number;
+}
+
 export const COLORS = {
   background: '#F5F5F5',
   card: '#FFFFFF',

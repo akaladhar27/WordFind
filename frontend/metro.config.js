@@ -22,4 +22,8 @@ config.cacheStores = [
 // Reduce the number of workers to decrease resource usage
 config.maxWorkers = 2;
 
+// Support importing .csv files as word arrays
+config.transformer.babelTransformerPath = require.resolve('./csv-transformer');
+config.resolver.sourceExts = [...config.resolver.sourceExts, 'csv'];
+
 module.exports = config;

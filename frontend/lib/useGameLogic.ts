@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GameState, HintState, JumbledWord } from './types';
+import { GameState, HistoryEntry, HintState, JumbledWord } from './types';
 import { getWords } from './wordService';
 import { isValidWord } from './dictionaryService';
 
@@ -62,6 +62,12 @@ export function useGameLogic() {
   // Hint state
   const [hints, setHints] = useState<HintState>({});
 
+  // History — all words played across sessions
+  const HISTORY_STORAGE_KEY = 'word_game_history';
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const recordedWordIdsRef = useRef<Set<string>>(new Set());
+  const timeLimitHandledRef = useRef(false);
+
   // Seen words — keyed by word length, values are sets of original words already played
   const [seenWords, setSeenWords] = useState<Record<number, string[]>>({});
 
@@ -83,6 +89,39 @@ export function useGameLogic() {
       // storage errors are non-fatal
     }
   };
+
+  const loadHistory = async (): Promise<HistoryEntry[]> => {
+    try {
+      const stored = await AsyncStorage.getItem(HISTORY_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const recordWord = useCallback((
+    word: JumbledWord,
+    solved: boolean,
+    usedHint: boolean,
+    style: 'classic' | 'wordle',
+  ) => {
+    if (recordedWordIdsRef.current.has(word.id)) return;
+    recordedWordIdsRef.current.add(word.id);
+    const entry: HistoryEntry = {
+      id: `${word.id}_${Date.now()}`,
+      word: word.original,
+      solved,
+      usedHint,
+      gameStyle: style,
+      wordLength: word.length,
+      timestamp: Date.now(),
+    };
+    setHistory(prev => {
+      const updated = [entry, ...prev].slice(0, 300);
+      AsyncStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, []);
 
   const addSeenWords = async (length: number, newWords: string[]) => {
     const existing = await loadSeenWords(length);
@@ -117,53 +156,6 @@ export function useGameLogic() {
     };
   }, [timerRunning, gameCompleted]);
 
-  // Wordle auto-submit when guess reaches word length
-  useEffect(() => {
-    const currentWord = gameState.words[0];
-    if (!currentWord || wordleGameOver || gameStyle !== 'wordle') return;
-    if (wordleCurrentGuess.length !== currentWord.length) return;
-
-    const timer = setTimeout(async () => {
-      const guessWord = wordleCurrentGuess;
-
-      // Check the dictionary before committing the row
-      const valid = await isValidWord(guessWord);
-      if (!valid) {
-        // Flash the row red, then clear so the player can re-type
-        setWordleCurrentRowInvalid(true);
-        setTimeout(() => {
-          setWordleCurrentGuess('');
-          setWordleCurrentRowInvalid(false);
-        }, 600);
-        return;
-      }
-
-      const newGuesses = [...wordleGuesses, guessWord];
-      setWordleGuesses(newGuesses);
-      setWordleCurrentGuess('');
-      setWordleAttempt(newGuesses.length);
-
-      const correct = guessWord.toLowerCase() === currentWord.original.toLowerCase();
-      if (correct) {
-        setWordleWon(true);
-        setWordleGameOver(true);
-        setTimerRunning(false);
-        setGameState(prev => ({
-          ...prev,
-          score: 1,
-          results: { ...prev.results, [currentWord.id]: true },
-        }));
-      } else if (newGuesses.length >= wordLength + 1) {
-        setWordleGameOver(true);
-        setTimerRunning(false);
-        setGameState(prev => ({
-          ...prev,
-          results: { ...prev.results, [currentWord.id]: false },
-        }));
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [wordleCurrentGuess, wordleGuesses, wordleGameOver, gameStyle, gameState.words]);
 
   // Time limit expiry effect
   useEffect(() => {
@@ -172,6 +164,20 @@ export function useGameLogic() {
       setTimeLimitExpired(true);
     }
   }, [elapsedTime, timeLimit, timerRunning]);
+
+  // Record any unfinished words when the timer expires
+  useEffect(() => {
+    if (!timeLimitExpired) return;
+    if (timeLimitHandledRef.current) return;
+    timeLimitHandledRef.current = true;
+    gameState.words.forEach(word => {
+      if (!recordedWordIdsRef.current.has(word.id)) {
+        const solved = gameState.results[word.id] === true;
+        const usedHint = (hints[word.id] || []).length > 0;
+        recordWord(word, solved, usedHint, gameStyle);
+      }
+    });
+  }, [timeLimitExpired, gameState, hints, gameStyle, recordWord]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -230,6 +236,8 @@ export function useGameLogic() {
     setElapsedTime(0);
     setTimerRunning(false);
     setTimeLimitExpired(false);
+    recordedWordIdsRef.current = new Set();
+    timeLimitHandledRef.current = false;
     setWordleGuesses([]);
     setWordleCurrentGuess('');
     setWordleAttempt(0);
@@ -252,7 +260,6 @@ export function useGameLogic() {
       setCurrentAnswer('');
       setShowResult(false);
       setTimerRunning(true);
-      await addSeenWords(wordLength, words.map(w => w.original));
     } catch (error) {
       console.error('Error loading words:', error);
     } finally {
@@ -260,9 +267,10 @@ export function useGameLogic() {
     }
   }, [wordLength, wordCount]);
 
-  // Start new game on mount
+  // Start new game + load history on mount
   useEffect(() => {
     fetchWords();
+    loadHistory().then(setHistory);
   }, []);
 
   const fetchWordsWithSettings = async (length: number, count: number) => {
@@ -270,6 +278,8 @@ export function useGameLogic() {
     setElapsedTime(0);
     setTimerRunning(false);
     setTimeLimitExpired(false);
+    recordedWordIdsRef.current = new Set();
+    timeLimitHandledRef.current = false;
     setWordleGuesses([]);
     setWordleCurrentGuess('');
     setWordleAttempt(0);
@@ -292,7 +302,6 @@ export function useGameLogic() {
       setCurrentAnswer('');
       setShowResult(false);
       setTimerRunning(true);
-      await addSeenWords(length, words.map(w => w.original));
     } catch (error) {
       console.error('Error loading words:', error);
     } finally {
@@ -315,7 +324,6 @@ export function useGameLogic() {
       setSolvedHintIndices([]);
       setInvalidWordError(false);
       setDuplicateWordError(false);
-      await addSeenWords(wordLength, [newWord.original]);
     } catch (error) {
       console.error('Error loading one more word:', error);
     }
@@ -417,50 +425,6 @@ export function useGameLogic() {
     if (invalidWordError) setInvalidWordError(false);
 
     setCurrentAnswer(cleanText);
-
-    if (cleanText.length === currentWord.length) {
-      setTimeout(async () => {
-        // Reject words that don't use exactly the same letters as the puzzle
-        const sortedInput    = cleanText.toLowerCase().split('').sort().join('');
-        const sortedOriginal = currentWord.original.toLowerCase().split('').sort().join('');
-        if (sortedInput !== sortedOriginal) {
-          showInvalidWordError();
-          return;
-        }
-
-        const valid = await isValidWord(cleanText);
-        if (!valid) {
-          showInvalidWordError();
-          return;
-        }
-        // Check if this valid word is the target word
-        const correct = cleanText.toLowerCase().trim() === currentWord.original.toLowerCase();
-        setCurrentAnswer('');
-
-        if (correct) {
-          // Accepted as the solution — snapshot hint indices before clearing for solved display
-          setSolvedHintIndices(hints[currentWord.id] || []);
-          setWordSolved(true);
-          setGameState(prev => ({
-            ...prev,
-            answers: { ...prev.answers, [currentWord.id]: cleanText },
-            results: { ...prev.results, [currentWord.id]: true },
-            score: prev.score + 1,
-          }));
-        } else {
-          // Valid English word but not the target
-          const word = cleanText.toLowerCase();
-          if ((foundWords[currentWord.id] || []).includes(word)) {
-            showDuplicateWordError();
-          } else {
-            setFoundWords(prev => ({
-              ...prev,
-              [currentWord.id]: [...(prev[currentWord.id] || []), word],
-            }));
-          }
-        }
-      }, 100);
-    }
   };
 
   // Handler for multi-word mode text input
@@ -499,29 +463,128 @@ export function useGameLogic() {
     }
 
     updateAnswer(word.id, cleanText);
+  };
 
-    if (cleanText.length === word.length && !isWordChecked) {
-      setTimeout(() => {
-        const correct = cleanText.toLowerCase().trim() === word.original.toLowerCase();
-        if (correct) {
-          setGameState(prev => ({
-            ...prev,
-            results: { ...prev.results, [word.id]: correct },
-            score: prev.score + 1,
-          }));
-        } else {
-          setGameState(prev => ({
-            ...prev,
-            results: { ...prev.results, [word.id]: correct },
-          }));
-          // Check dictionary only for wrong answers
-          isValidWord(cleanText).then(valid => {
-            if (!valid) {
-              setDictionaryErrors(prev => ({ ...prev, [word.id]: true }));
-            }
-          });
+  const handleSingleWordEnter = async () => {
+    const currentWord = gameState.words[gameState.currentIndex];
+    if (!currentWord || wordSolved || timeLimitExpired) return;
+    const cleanText = currentAnswer;
+    if (cleanText.length !== currentWord.length) return;
+
+    const sortedInput    = cleanText.toLowerCase().split('').sort().join('');
+    const sortedOriginal = currentWord.original.toLowerCase().split('').sort().join('');
+    if (sortedInput !== sortedOriginal) {
+      showInvalidWordError();
+      return;
+    }
+
+    const valid = await isValidWord(cleanText);
+    if (!valid) {
+      showInvalidWordError();
+      return;
+    }
+
+    const correct = cleanText.toLowerCase() === currentWord.original.toLowerCase();
+    setCurrentAnswer('');
+
+    if (correct) {
+      const hintIndices = hints[currentWord.id] || [];
+      setSolvedHintIndices(hintIndices);
+      setWordSolved(true);
+      recordWord(currentWord, true, hintIndices.length > 0, gameStyle);
+      addSeenWords(wordLength, [currentWord.original]);
+      setGameState(prev => ({
+        ...prev,
+        answers: { ...prev.answers, [currentWord.id]: cleanText },
+        results: { ...prev.results, [currentWord.id]: true },
+        score: prev.score + 1,
+      }));
+    } else {
+      const word = cleanText.toLowerCase();
+      if ((foundWords[currentWord.id] || []).includes(word)) {
+        showDuplicateWordError();
+      } else {
+        setFoundWords(prev => ({
+          ...prev,
+          [currentWord.id]: [...(prev[currentWord.id] || []), word],
+        }));
+      }
+    }
+  };
+
+  const handleMultiWordEnter = (wordId: string) => {
+    const word = gameState.words.find(w => w.id === wordId);
+    if (!word) return;
+    const wordResult = gameState.results[word.id];
+    if (wordResult !== undefined) return;
+    const cleanText = gameState.answers[word.id] || '';
+    if (cleanText.length !== word.length) return;
+
+    const correct = cleanText.toLowerCase() === word.original.toLowerCase();
+    const usedHint = (hints[word.id] || []).length > 0;
+    if (correct) {
+      setGameState(prev => ({
+        ...prev,
+        results: { ...prev.results, [word.id]: true },
+        score: prev.score + 1,
+      }));
+      recordWord(word, true, usedHint, 'classic');
+      addSeenWords(wordLength, [word.original]);
+    } else {
+      setGameState(prev => ({
+        ...prev,
+        results: { ...prev.results, [word.id]: false },
+      }));
+      recordWord(word, false, usedHint, 'classic');
+      isValidWord(cleanText).then(valid => {
+        if (!valid) {
+          setDictionaryErrors(prev => ({ ...prev, [word.id]: true }));
         }
-      }, 100);
+      });
+    }
+  };
+
+  const handleWordleEnter = async () => {
+    const currentWord = gameState.words[0];
+    if (!currentWord || wordleGameOver || gameStyle !== 'wordle') return;
+    if (wordleCurrentGuess.length !== currentWord.length) return;
+
+    const guessWord = wordleCurrentGuess;
+    const valid = await isValidWord(guessWord);
+    if (!valid) {
+      setWordleCurrentRowInvalid(true);
+      setTimeout(() => {
+        setWordleCurrentGuess('');
+        setWordleCurrentRowInvalid(false);
+      }, 600);
+      return;
+    }
+
+    const newGuesses = [...wordleGuesses, guessWord];
+    setWordleGuesses(newGuesses);
+    setWordleCurrentGuess('');
+    setWordleAttempt(newGuesses.length);
+
+    const correct = guessWord.toLowerCase() === currentWord.original.toLowerCase();
+    if (correct) {
+      setWordleWon(true);
+      setWordleGameOver(true);
+      setTimerRunning(false);
+      setGameState(prev => ({
+        ...prev,
+        score: 1,
+        results: { ...prev.results, [currentWord.id]: true },
+      }));
+      recordWord(currentWord, true, false, 'wordle');
+      addSeenWords(wordLength, [currentWord.original]);
+    } else if (newGuesses.length >= wordLength + 1) {
+      setWordleGameOver(true);
+      setTimerRunning(false);
+      setGameState(prev => ({
+        ...prev,
+        results: { ...prev.results, [currentWord.id]: false },
+      }));
+      recordWord(currentWord, false, false, 'wordle');
     }
   };
 
@@ -576,11 +639,14 @@ export function useGameLogic() {
     handleSingleWordChange,
     handleMultiWordChange,
     handleWordleChange,
+    // Enter handlers
+    handleSingleWordEnter,
+    handleMultiWordEnter,
+    handleWordleEnter,
     // Game style
     gameStyle,
     tempGameStyle,
     setTempGameStyle,
-    // Keyboard style
     // Wordle
     wordleGuesses,
     wordleCurrentGuess,
@@ -596,5 +662,11 @@ export function useGameLogic() {
     duplicateWordError,
     wordSolved,
     solvedHintIndices,
+    // History
+    history,
+    clearHistory: () => {
+      setHistory([]);
+      AsyncStorage.removeItem('word_game_history').catch(() => {});
+    },
   };
 }

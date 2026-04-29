@@ -18,28 +18,62 @@ This is an **Expo (React Native) app** using **expo-router** for file-based rout
 
 ### App structure
 
-The entire game UI lives in a single file: `app/index.tsx` (`WordUnjumbleGame` component). There are no sub-routes — `app/+html.tsx` is only a web shell wrapper.
+```
+app/
+  index.tsx          # Main game UI (WordUnjumbleGame component)
+  useGameLogic.ts    # All game state and logic (custom hook)
+  wordService.ts     # Word selection and shuffling logic
+  wordLists.ts       # Bundled word lists keyed by word length (4–8)
+  types.ts           # Shared TypeScript types (GameState, JumbledWord, HintState, etc.)
+  styles.ts          # StyleSheet factory (createStyles) — responsive, takes screenWidth/Height
+  CustomKeyboard.tsx # In-app QWERTY keyboard component
+  +html.tsx          # Web shell wrapper only
+```
+
+There are no sub-routes.
 
 ### Game logic
 
-The app is a word unjumble game with two modes:
-- **Single-word mode** (`wordCount = 1`): navigate through words one at a time with Next/Fetch More
-- **Multi-word mode** (`wordCount > 1`): all words shown at once, submit all answers together
+All state and logic lives in `useGameLogic` (`app/useGameLogic.ts`). `app/index.tsx` only handles rendering and responsive layout calculations.
 
-State is managed entirely with `useState`/`useRef` inside the single component. Key state groups:
-- `gameState` — words array, currentIndex, score, per-word answers and results
+The app supports two **game styles** (selectable in Settings):
+
+- **Classic** — unjumble a shuffled word by typing the answer
+  - **Single-word mode** (`wordCount = 1`): one word at a time; auto-submits when answer length matches word length; "One More" button after correct
+  - **Multi-word mode** (`wordCount > 1`): all words shown at once; each auto-submits individually; "One More" after all answered
+- **Wordle** — guess the hidden word in `wordLength + 1` attempts; each row auto-submits when filled; invalid words (checked against dictionary API) flash red and clear
+
+### Key state in `useGameLogic`
+
+- `gameState` — `{ words, currentIndex, score, answers, results }`
 - `hints` — per-word array of revealed letter indices
-- `elapsedTime` / `timerRunning` — game timer
+- `elapsedTime` / `timerRunning` / `timeLimit` / `timeLimitExpired` — optional countdown timer
+- `wordleGuesses` / `wordleCurrentGuess` / `wordleAttempt` / `wordleGameOver` / `wordleWon` — Wordle mode state
+- `dictionaryErrors` — per-word flag set when the entered word fails dictionary validation
+- `wordleCurrentRowInvalid` — true while the current Wordle row is flashing red
+- `seenWords` — per-length list of already-played words (persisted via `AsyncStorage`)
+- `keyboardStyle` — `'system'` (native keyboard) or `'custom'` (in-app `CustomKeyboard`)
+- `gameStyle` — `'classic'` or `'wordle'`
 
-### Backend API
+### Word source
 
-The app calls a separate backend service. Configure the URL in `.env`:
+Words are served entirely client-side — there is **no backend**. `wordService.getWords(length, count, exclude)` picks random words from `WORD_LISTS` in `wordLists.ts`, shuffles them, and returns `JumbledWord[]`. Seen words are tracked in `AsyncStorage` and passed as the `exclude` list so the same word isn't repeated across sessions.
 
-```
-EXPO_PUBLIC_BACKEND_URL=http://<your-local-ip>:8001
-```
+### Dictionary validation
 
-The only API call is `POST /api/words` with body `{ word_length, word_count }`, returning `{ words: JumbledWord[] }` where each word has `{ id, original, jumbled, length }`.
+Classic mode and Wordle mode both validate answers against the free public API:
+`https://api.dictionaryapi.dev/api/v2/entries/en/<word>`
+
+Network failures silently pass (the player is not penalised).
+
+### Settings modal
+
+Accessible via the **New** button in the header. Options:
+- **Game Style**: Classic / Wordle
+- **Word Complexity**: 4–8 letters
+- **Number of Words**: 1, 3, 5, 10 (locked to 1 in Wordle mode)
+- **Time Limit**: None / 1m / 2m / 3m / 5m
+- **Keyboard**: System / Game Keyboard
 
 ### Path aliases
 
